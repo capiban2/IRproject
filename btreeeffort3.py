@@ -327,7 +327,7 @@ class TraverseThroughTree:
                 return None
             return self.__returnDataFromIndexFile(pointers[upper_bound])
         median = (upper_bound+lower_bound)//2
-         
+
             
                 
         
@@ -347,8 +347,8 @@ class TraverseThroughTree:
         return self.__getattribute__(f'__BS{NODETYPE[type]}')(keys,pointers,0,key_quantity-1) 
         
         
-    def __returnDataFromIndexFile(self,)
-
+    def __returnDataFromIndexFile(self,test):
+        pass
 if __name__ == "__main__":
     # tree = TreeHolder()
     # for elem in DICTIONARY:
