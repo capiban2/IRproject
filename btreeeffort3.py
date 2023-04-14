@@ -160,7 +160,7 @@ class FixedBtree:
             new_right_node.parrent_pointer = weakref.proxy(self.root)
             new_right_node.left_pointer = weakref.proxy(new_left_node)
             new_left_node.right_pointer = weakref.proxy(new_right_node)
-            
+            fdas
             self.tree_length+=1
             
         else:
