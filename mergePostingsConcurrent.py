@@ -1,0 +1,2 @@
+from mergepostrings import MergePostings
+
