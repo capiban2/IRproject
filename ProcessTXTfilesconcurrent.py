@@ -14,7 +14,7 @@ INFILES='/home/iv/Documents/mydir/kursovaya/filesforindexing2'
 
 LOCK = threading.Lock()
 DATAISREADY=threading.Event()
-def processFlow(data,file,offset,number):
+def processFlow(data,dirout,file,offset,number):
     dictionary = []
     with open(file) as input_file:
         os.lseek(input_file.fileno(),offset,os.SEEK_SET)
@@ -38,19 +38,19 @@ def processFlow(data,file,offset,number):
         if val not in dictionary:
             dictionary.append(val)
     res_string = ' '.join(sorted(dictionary))
-    with open(os.path.join(OUTFILE,f'{number}.txt'), 'w') as outfile:
+    with open(os.path.join(dirout,f'{number}.txt'), 'w') as outfile:
         
         outfile.write(res_string)
         
     
     
     
-def multithreading_logic(pathtofile:str):
+def multithreading_logic(pathtofile:str,dirout:str):
     count_threads = os.stat(pathtofile).st_size//BLOCKSIZE
     threads = []
     data = {}
     for i in range(count_threads):
-        threads.append(threading.Thread(target=processFlow,args = (data,pathtofile,i*BLOCKSIZE+i,i,)))
+        threads.append(threading.Thread(target=processFlow,args = (data,dirout,pathtofile,i*BLOCKSIZE+i,i,)))
     for thread in threads:
         thread.start()
     while len(data)!= count_threads:
@@ -62,10 +62,12 @@ def multithreading_logic(pathtofile:str):
     
 
 if __name__ == '__main__':
+    for filename in os.listdir(INFILES):
+        os.mkdir(os.path.join(OUTFILE,filename.split('.')[0]))
     start = time.perf_counter()
     with multiprocessing.Pool() as multiprocessing_pool:
         multiprocessing_pool.map(
             multithreading_logic,
-            (os.path.join(INFILES,path) for path in os.listdir(INFILES))
+            ((os.path.join(INFILES,path),os.path.join(OUTFILE,path.split('.')[0])) for path in os.listdir(INFILES))
         ) 
     print(time.perf_counter() - start)
