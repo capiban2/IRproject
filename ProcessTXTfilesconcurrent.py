@@ -8,9 +8,9 @@ import re
 import time
 from queue import Queue
 
-BLOCKSIZE = 1024*16
-OUTFILE = '/home/iv/Documents/mydir/kursovaya/indexbinaries'
-INFILES='/home/iv/Documents/mydir/kursovaya/filesforindexing2'
+BLOCKSIZE = 1024*256
+OUTFILE = '/home/iv/Documents/mydir/kursovaya/filesfortests'
+INFILES='/home/iv/Documents/mydir/kursovaya/indexbinaries'
 
 LOCK = threading.Lock()
 DATAISREADY=threading.Event()
@@ -45,7 +45,9 @@ def processFlow(data,dirout,file,offset,number):
     
     
     
-def multithreading_logic(pathtofile:str,dirout:str):
+def multithreadingLogic(received:tuple[str,str]):
+    pathtofile = received[0]
+    dirout = received[1]
     count_threads = os.stat(pathtofile).st_size//BLOCKSIZE
     threads = []
     data = {}
@@ -63,11 +65,14 @@ def multithreading_logic(pathtofile:str,dirout:str):
 
 if __name__ == '__main__':
     for filename in os.listdir(INFILES):
-        os.mkdir(os.path.join(OUTFILE,filename.split('.')[0]))
+        try:
+            os.mkdir(os.path.join(OUTFILE,filename.split('.')[0]))
+        except Exception:
+            continue
     start = time.perf_counter()
-    with multiprocessing.Pool() as multiprocessing_pool:
+    with multiprocessing.Pool(1) as multiprocessing_pool:
         multiprocessing_pool.map(
-            multithreading_logic,
+            multithreadingLogic,
             ((os.path.join(INFILES,path),os.path.join(OUTFILE,path.split('.')[0])) for path in os.listdir(INFILES))
         ) 
     print(time.perf_counter() - start)
