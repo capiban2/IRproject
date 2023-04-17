@@ -5,7 +5,7 @@ import time
 import sys
 import asyncio
 import re
-
+import aiofiles.os
 
 def printInfo(val):
     print(os.getpid())
@@ -113,6 +113,7 @@ class MergerSameFile:
                     if is_sorted:
                         is_sorted = False
                 self.buffer[id].pop(0)
+                #subbufer.pop(0)
                 
             
                     
@@ -124,7 +125,7 @@ class MergerSameFile:
             raise StopIteration
         self.queue.pop(0)
         if is_closed:
-            self.buffer = [buffer for buffer in self.buffer if len(buffer)>0]
+            self.buffer = [buffer for buffer in self.buffer if len(buffer)>0 and self.filedescriptors[id].closed]
             self.filedescriptors = [fd for fd in self.filedescriptors if not fd.closed]
         return return_key
                     
@@ -166,16 +167,14 @@ def mergeChunkFiles(dirname : str,offset_start_with : int,file_quantity  : int,b
                 output = ''
             output+= f'{term} '
         output_file.write(output.strip(' '))
-    # for filename in [elem for elem in os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity] if re.search(r'result\d+.out',elem) is None]:
-    #     os.remove(os.path.join(dirname,filename))
-    asyncio.run(garbageCollector(dirname,offset_start_with,file_quantity))
+    for filename in [elem for elem in os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity] if re.search(r'result\d+.out',elem) is None]:
+        os.remove(os.path.join(dirname,filename))
+    #asyncio.run(garbageCollector(dirname,offset_start_with,file_quantity))
    
-async def garbageCollector(dirname:str,offset_start_with : int,file_quantity :int):
-    await asyncio.gather(
-        *(os.remove(os.path.join(dirname,filename)) for filename in 
-            os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity]
-        )
-    ) 
+# async def garbageCollector(dirname:str,offset_start_with : int,file_quantity :int):
+#     await asyncio.gather(
+#         *(aiofiles.os.remove(os.path.join(dirname,filename)) for filename in os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity])
+#     ) 
         
     
             
