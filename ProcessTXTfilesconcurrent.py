@@ -8,8 +8,8 @@ import re
 import time
 from queue import Queue
 
-BLOCKSIZE = 1024*256
-OUTFILE = '/home/iv/Documents/mydir/kursovaya/filesfortests'
+BLOCKSIZE = 1024*8
+OUTFILE = '/home/iv/Documents/mydir/kursovaya/filesfortests2'
 INFILES='/home/iv/Documents/mydir/kursovaya/indexbinaries'
 
 LOCK = threading.Lock()

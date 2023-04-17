@@ -87,7 +87,7 @@ class MergerSameFile:
         self.start_with_file_with_number = offset
         self.quantity_files = chunksize
         self.bk = blocksize
-        self.filenames = [elem for elem in os.listdir(dirname) if re.search(r'res\d+.out',elem) is None]
+        self.filenames = [elem for elem in os.listdir(dirname)[self.start_with_file_with_number:self.start_with_file_with_number+self.quantity_files] if re.search(r'res\d+.out',elem) is None]
        
     def __iter__(self):
         self.filedescriptors = [open(os.path.join(self.dirname,filename)) for filename in os.listdir(self.dirname)[self.start_with_file_with_number:self.start_with_file_with_number+self.quantity_files]]
@@ -105,11 +105,15 @@ class MergerSameFile:
                     ret_val = self.__helper(id)
                     if not is_closed and ret_val:
                         is_closed=True
+                         
+                
                 if subbufer[0] not in self.queue:
                     self.queue.append(subbufer[0])
                     if is_sorted:
                         is_sorted = False
                 self.buffer[id].pop(0)
+            
+                    
         if not is_sorted:
             self.queue.sort()
         try:   
@@ -123,13 +127,14 @@ class MergerSameFile:
         return return_key
                     
     def __helper(self,id):
-        try:
-            flow = self.filedescriptors[id].read(self.bk).split(' ')
-        except IndexError:
-            return True
+        
+        
+             
+        flow = self.filedescriptors[id].read(self.bk).split(' ')
+                
         
         if flow == ['']:
-            print(f'File {self.filenames[id]} is removed.')
+            # print(f'File {self.filenames[id]} is removed.')
             self.filedescriptors[id].close()
             os.remove(os.path.join(self.dirname,self.filenames[id]))
             self.filenames.pop(id)
@@ -162,17 +167,21 @@ def mergeChunkFiles(dirname : str,offset_start_with : int,file_quantity  : int,b
     
             
 def mergeSameDir(dirname:str, blocksize : int):
-    quantity_files_per_proc = len(os.listdir(dirname))/os.cpu_count
+    quantity_files_per_proc = len(os.listdir(dirname))//os.cpu_count()
     with multiprocessing.Pool() as mp:
         mp.map(
             *(
                 mergeChunkFiles(dirname, _*(quantity_files_per_proc+1),
-                                quantity_files_per_proc,blocksize,os.path.join(dirname,f'{_}.out'))
-                                for _ in range(len(os.listdir(dirname)//quantity_files_per_proc))
+                                quantity_files_per_proc,blocksize,os.path.join(dirname,f'{os.getpid()}{_}.out'))
+                                for _ in range(len(os.listdir(dirname))//quantity_files_per_proc)
             )
         )
     mergeChunkFiles(dirname,0,os.cpu_count(),blocksize,os.path.join(dirname,'result.out'))
-
+    
+    # a = list((dirname, _*(quantity_files_per_proc+1),
+    #                             quantity_files_per_proc,blocksize,os.path.join(dirname,f'{os.getpid()}{_}.out'))
+    #                             for _ in range(len(os.listdir(dirname))//quantity_files_per_proc))
+    # pass
     
         
         
@@ -180,10 +189,13 @@ def mergeSameDir(dirname:str, blocksize : int):
     
 if __name__ == '__main__':
     start = time.perf_counter()
-    mergeChunkFiles('/home/iv/Documents/mydir/kursovaya/temp',0,15,512,'/home/iv/Documents/mydir/kursovaya/temp/res.out')
+    mergeChunkFiles('/home/iv/Documents/mydir/kursovaya/temp',0,300,512,'/home/iv/Documents/mydir/kursovaya/temp/res.out')
     print(f'{time.perf_counter() - start }')
- 
-    #def mergeChunkOfFiles(self,quantity:int,startwith:int):
+    
+    # start = time.perf_counter()
+    # mergeSameDir('/home/iv/Documents/mydir/kursovaya/temp',512)
+    # print(f'{time.perf_counter() - start}')
+    # #def mergeChunkOfFiles(self,quantity:int,startwith:int):
         
 
 # async def main(dirname,chunksize,offset,blocksize):
