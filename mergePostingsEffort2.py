@@ -87,7 +87,7 @@ class MergerSameFile:
         self.start_with_file_with_number = offset
         self.quantity_files = chunksize
         self.bk = blocksize
-        self.filenames = [elem for elem in os.listdir(dirname)[self.start_with_file_with_number:self.start_with_file_with_number+self.quantity_files] if re.search(r'res\d+.out',elem) is None]
+        
        
     def __iter__(self):
         self.filedescriptors = [open(os.path.join(self.dirname,filename)) for filename in os.listdir(self.dirname)[self.start_with_file_with_number:self.start_with_file_with_number+self.quantity_files]]
@@ -107,11 +107,13 @@ class MergerSameFile:
                         is_closed=True
                          
                 
+                
                 if subbufer[0] not in self.queue:
                     self.queue.append(subbufer[0])
                     if is_sorted:
                         is_sorted = False
                 self.buffer[id].pop(0)
+                
             
                     
         if not is_sorted:
@@ -129,15 +131,17 @@ class MergerSameFile:
     def __helper(self,id):
         
         
-             
-        flow = self.filedescriptors[id].read(self.bk).split(' ')
+        try: 
+            flow = self.filedescriptors[id].read(self.bk).split(' ')
+        except IndexError:
+            return True
                 
         
         if flow == ['']:
             # print(f'File {self.filenames[id]} is removed.')
             self.filedescriptors[id].close()
-            os.remove(os.path.join(self.dirname,self.filenames[id]))
-            self.filenames.pop(id)
+            
+            #self.filenames.pop(id)
             
             return True
         self.buffer[id][0]+=flow[0]
@@ -162,7 +166,16 @@ def mergeChunkFiles(dirname : str,offset_start_with : int,file_quantity  : int,b
                 output = ''
             output+= f'{term} '
         output_file.write(output.strip(' '))
-    
+    # for filename in [elem for elem in os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity] if re.search(r'result\d+.out',elem) is None]:
+    #     os.remove(os.path.join(dirname,filename))
+    asyncio.run(garbageCollector(dirname,offset_start_with,file_quantity))
+   
+async def garbageCollector(dirname:str,offset_start_with : int,file_quantity :int):
+    await asyncio.gather(
+        *(os.remove(os.path.join(dirname,filename)) for filename in 
+            os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity]
+        )
+    ) 
         
     
             
