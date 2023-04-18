@@ -82,15 +82,15 @@ STOPBORDER = 128
 #         return False
 
 class MergerSameFile:
-    def __init__(self,dirname,chunksize:int,offset:int,blocksize):
+    def __init__(self,dirname,filenames,chunksize,blocksize):
         self.dirname = dirname
-        self.start_with_file_with_number = offset
+        self.filenames = filenames
         self.quantity_files = chunksize
         self.bk = blocksize
         
        
     def __iter__(self):
-        self.filedescriptors = [open(os.path.join(self.dirname,filename)) for filename in os.listdir(self.dirname)[self.start_with_file_with_number:self.start_with_file_with_number+self.quantity_files]]
+        self.filedescriptors = [open(os.path.join(self.dirname,filename)) for filename in self.filenames]
         self.buffer = [fd.read(self.bk).split(' ') for fd in self.filedescriptors]
         self.queue = []
         
@@ -157,17 +157,25 @@ class MergerSameFile:
         
 #     def mergeSameDir():
 
-def mergeChunkFiles(dirname : str,offset_start_with : int,file_quantity  : int,blocksize : int,
+def mergeChunkFiles(dirname : str,chunk_of_files : list[str] ,chunksize : int ,blocksize : int,
                     resultfilename : str):
+    # print(f'Process {os.getpid()} was launched {time.perf_counter()}')
+    # filenames = (elem for elem in os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity] if re.search(f'result{epoch}\d+.out',elem) is None) \
+    #     if epoch > 0 else os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity]
+    #pass
     with open(resultfilename,'w') as output_file:
         output = ''
-        for term in MergerSameFile(dirname,file_quantity,offset_start_with,blocksize):
+        for term in MergerSameFile(dirname,chunk_of_files,chunksize,blocksize):
             if len(output)>512:
                 output_file.write(output.strip(' '))
                 output = ''
             output+= f'{term} '
         output_file.write(output.strip(' '))
-    for filename in [elem for elem in os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity] if re.search(r'result\d+.out',elem) is None]:
+    
+    # for filename in filenames:
+    #     print(f'Process {os.getpid()} had removed {os.path.join(dirname,filename)}')
+    #     os.remove(os.path.join(dirname,filename))
+    for filename in chunk_of_files:
         os.remove(os.path.join(dirname,filename))
     #asyncio.run(garbageCollector(dirname,offset_start_with,file_quantity))
    
@@ -178,32 +186,91 @@ def mergeChunkFiles(dirname : str,offset_start_with : int,file_quantity  : int,b
         
     
             
-def mergeSameDir(dirname:str, blocksize : int):
-    quantity_files_per_proc = len(os.listdir(dirname))//os.cpu_count()
-    with multiprocessing.Pool() as mp:
-        mp.map(
-            *(
-                mergeChunkFiles(dirname, _*(quantity_files_per_proc+1),
-                                quantity_files_per_proc,blocksize,os.path.join(dirname,f'{os.getpid()}{_}.out'))
-                                for _ in range(len(os.listdir(dirname))//quantity_files_per_proc)
-            )
-        )
-    mergeChunkFiles(dirname,0,os.cpu_count(),blocksize,os.path.join(dirname,'result.out'))
+# def mergeSameDir(dirname:str, blocksize : int):
+#     quantity_files_per_proc = len(os.listdir(dirname))//os.cpu_count()
+#     with multiprocessing.Pool() as mp:
+#         mp.map(
+#             *(
+#                 mergeChunkFiles(dirname, _*(quantity_files_per_proc+1),
+#                                 quantity_files_per_proc,blocksize,os.path.join(dirname,f'result0{os.getpid()}.out'),0)
+#                                 for _ in range(os.cpu_count())
+#             )
+#         )
+#     with multiprocessing.Pool(processes=os.cpu_count()//2) as mp:
+#         mp.map(
+#             *(
+#                 mergeChunkFiles(dirname,2*_,2,
+#                                 blocksize,os.path.join(dirname,f'result1{os.getpid()}.out'),1)
+#                 for _ in range(os.cpu_count()//2)
+#             )
+#         )
+#     with multiprocessing.Pool(processes=2) as mp:
+#         mp.map(
+#             *(
+#                 mergeChunkFiles(dirname,_*os.cpu_count()//2,os.cpu_count()//2,
+#                                 blocksize,os.path.join(dirname,f'result2{os.getpid()}.out'),2)
+#             )
+#         )
+        
+#     mergeChunkFiles(dirname,0,2,blocksize,f'{os.path.basename(dirname)}.out',3)
     
-    # a = list((dirname, _*(quantity_files_per_proc+1),
-    #                             quantity_files_per_proc,blocksize,os.path.join(dirname,f'{os.getpid()}{_}.out'))
-    #                             for _ in range(len(os.listdir(dirname))//quantity_files_per_proc))
+#     #mergeChunkFiles(dirname,0,os.cpu_count(),blocksize,os.path.join(dirname,'result.out'))
+    
+#     # a = list((dirname, _*(quantity_files_per_proc+1),
+#     #                             quantity_files_per_proc,blocksize,os.path.join(dirname,f'{os.getpid()}{_}.out'))
+#     #                             for _ in range(len(os.listdir(dirname))//quantity_files_per_proc))
+#     # pass
+    
+def mergeSameDir1(dirname : str, blocksize : int) ->None:
+    quantity_files_per_proc = len(os.listdir(dirname))//os.cpu_count()
+    # data_to_prcoesses = [(_*(quantity_files_per_proc+1),quantity_files_per_proc,
+    #               os.path.join(dirname,f'result0{_}.out'),0) for _ in range(os.cpu_count())]
+    # with multiprocessing.Pool() as mp:
+    #     mp.map(
+            
+    #             mergeChunkFiles,
+    #             # ((dirname, _*(quantity_files_per_proc+1),
+    #             #                 quantity_files_per_proc,blocksize,os.path.join(dirname,f'result0{os.getpid()}.out'),0) for _ in range(len(os.listdir(dirname)))
+    #            (dirname for _ in data_to_prcoesses),
+    #            (_[0] for _ in data_to_prcoesses),
+    #            (blocksize for _ in data_to_prcoesses),
+    #            (_[1] for _ in data_to_prcoesses),
+    #            (_[2] for _ in data_to_prcoesses)
+               
+               
+                
+    #         )
+    # a = list((dirname,_*(quantity_files_per_proc+1),
+    #           quantity_files_per_proc,blocksize,os.path.join(dirname,f'result0{_}.out')) for _ in range(os.cpu_count()))
+    # pass
+    dirlist = os.listdir(dirname)
+    with multiprocessing.Pool() as mp:
+        mp.starmap(
+            mergeChunkFiles,
+            ((dirname,dirlist[_*(quantity_files_per_proc+1):_*(quantity_files_per_proc+1) +_],
+              blocksize,os.path.join(dirname,f'result0{_}.out')) for _ in range(os.cpu_count()))
+        )
+        
+        
+    mergeChunkFiles(dirname,os.listdir(dirlist),os.cpu_count(),blocksize,f'{os.path.basename(dirname)}.out',1)
+    
+    # a =  list((dirname,_*(quantity_files_per_proc+1),quantity_files_per_proc,blocksize,
+    #               os.path.join(dirname,f'result0{os.getpid()}.out'),0) for _ in range(os.cpu_count()))
     # pass
     
         
         
-        
     
 if __name__ == '__main__':
-    start = time.perf_counter()
-    mergeChunkFiles('/home/iv/Documents/mydir/kursovaya/temp',0,300,512,'/home/iv/Documents/mydir/kursovaya/temp/res.out')
-    print(f'{time.perf_counter() - start }')
-    
+    # start = time.perf_counter()
+    # mergeChunkFiles('/home/iv/Documents/mydir/kursovaya/temp',0,300,512,'/home/iv/Documents/mydir/kursovaya/temp/res.out')
+    # print(f'{time.perf_counter() - start }')
+    start  = time.perf_counter() 
+    mergeSameDir1(INDIR,512)
+    print(time.perf_counter()-start)
+    # quantity_files_per_proc = len(os.listdir(INDIR))//os.cpu_count()
+    # quantity_per_proc = [_*(quantity_files_per_proc+1) for _ in range(os.cpu_count())]
+    # pass
     # start = time.perf_counter()
     # mergeSameDir('/home/iv/Documents/mydir/kursovaya/temp',512)
     # print(f'{time.perf_counter() - start}')
