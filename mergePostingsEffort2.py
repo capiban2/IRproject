@@ -177,6 +177,7 @@ class MergeDifferentFiles:
         is_sorted = True
         if len(self.queue)<=self.quantity_files:
             for id,subbufer in enumerate(self.buffer):
+                
                 if len(subbufer)==1:
                     if not is_closed and self.__helper():
                         is_closed = True
