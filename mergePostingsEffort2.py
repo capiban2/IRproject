@@ -149,7 +149,84 @@ class MergerSameFile:
         self.buffer[id].extend(flow[1:]) 
         return False
                 
+
+class MergeDifferentFiles:
+    def __init__(self,dirname : str,blocksize : int) ->None:
+        self.dirname = dirname
+        self.filenames = os.listdir(dirname)
+        self.mapping = {filename:_ for _,filename in enumerate(self.filenames)}
+        
+        self.blksz = blocksize
+        self.quantity_files = len(self.filenames)
+        
+    def __iter__(self):
+        self.filedescriptors = [open(os.path.join(self.dirname,_)) for _ in self.filenames]
+        self.buffer = [fd.read(self.blksz).split(' ') for fd in self.filedescriptors]
+        self.queue : dict[str,list[int]]= {}
+        self.queue_keys = []
+        
+        return self
+    
+    
+    '''
+        __next__ returns tuple, containing current term and his posting.
+    '''
+    
+    def __next__(self)->tuple[str,list[int]]:
+        is_closed = False
+        is_sorted = True
+        if len(self.queue)<=self.quantity_files:
+            for id,subbufer in enumerate(self.buffer):
+                if len(subbufer)==1:
+                    if not is_closed and self.__helper():
+                        is_closed = True
+                        
+                    current_term = subbufer[0]
+                    subbufer.pop(0)
+                    
+                    if current_term not in self.queue_keys:
+                        self.queue[current_term] = [self.filenames[id]]
+                        self.queue_keys.append(current_term)
+                        if is_sorted:
+                            is_sorted = False
+                    else:
+                        self.queue[current_term].append(self.filenames[id])
+        if not is_sorted:
+            sorted(self.queue_keys) 
+        try:
+            ret_term = self.queue_keys[0]
+            return_value = (ret_term,self.queue[ret_term])
+        except IndexError:
+            raise StopIteration
+        
+        self.queue.pop(ret_term)
+        self.queue_keys.pop(0)
+        if is_closed:
+            self.buffer = [buffer for buffer in self.buffer if len(buffer)>0 and self.filedescriptors[id].closed]
+            self.filedescriptors = [fd for fd in self.filedescriptors if not fd.closed]
+        return return_value
+                        
+                        
+        
+        
+    def __helper(self):
+        try: 
+            flow = self.filedescriptors[id].read(self.bk).split(' ')
+        except IndexError:
+            return True
                 
+        
+        if flow == ['']:
+            # print(f'File {self.filenames[id]} is removed.')
+            self.filedescriptors[id].close()
+            
+            #self.filenames.pop(id)
+            
+            return True
+        self.buffer[id][0]+=flow[0]
+        self.buffer[id].extend(flow[1:]) 
+        return False
+        
     
 # class Merger:
 #     def __init__(self,dirs):
@@ -221,6 +298,11 @@ def mergeChunkFiles(dirname : str,chunk_of_files : list[str] ,chunksize : int ,b
 #     #                             for _ in range(len(os.listdir(dirname))//quantity_files_per_proc))
 #     # pass
     
+    
+'''
+    TODO: Move result file in other place, common storage(flatten nesting)
+'''
+
 def mergeSameDir1(dirname : str, blocksize : int) ->None:
     quantity_files_per_proc = len(os.listdir(dirname))//os.cpu_count()+1
     # data_to_prcoesses = [(_*(quantity_files_per_proc+1),quantity_files_per_proc,
@@ -269,7 +351,9 @@ def mergeSameDir1(dirname : str, blocksize : int) ->None:
     
         
         
-    
+
+
+ 
 if __name__ == '__main__':
     # start = time.perf_counter()
     # mergeChunkFiles('/home/iv/Documents/mydir/kursovaya/temp',0,300,512,'/home/iv/Documents/mydir/kursovaya/temp/res.out')
