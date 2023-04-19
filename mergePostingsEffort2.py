@@ -185,6 +185,7 @@ class MergeDifferentFiles:
                     current_term = subbufer[0]
                     subbufer.pop(0)
                     
+                    
                     if current_term not in self.queue_keys:
                         self.queue[current_term] = [self.filenames[id]]
                         self.queue_keys.append(current_term)
