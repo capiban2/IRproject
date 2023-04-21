@@ -9,6 +9,7 @@ import os
 import re
 from itertools import zip_longest
 import weakref
+from encodeDigits import packedBCD,decodePackedBCD
 
 DICTIONARY : list[str] = [
     'run','arbitary','never',
@@ -59,14 +60,14 @@ DEGREEPERLEN : dict[Range,int] = {
 }
 
 
-NODETYPE : dict[str,str] = {
-    'l' : 'leaf',
-    'n' : 'node'
+NODETYPE : dict[bytes,str] = {
+    b'l' : 'leaf',
+    b'n' : 'node'
 }
 
 @dataclass(slots=True)
 class Key:
-    data_pointer : list[int] = field(default_factory=list)
+    data_pointer : list[tuple[int,int,]] = field(default_factory=list)
     term : bytes =field(default=b'') 
     
 @dataclass(slots=True)
@@ -74,7 +75,7 @@ class Node:
     leaf:bool = True
     key_quantity:int = field(default=0)
     keys:list[Key] = field(default_factory=list)
-    pointers: list[ ReferencableNode | list[int] | None ] =field(default_factory=list)
+    pointers: list[ ReferencableNode | tuple[int,int,] | None ] =field(default_factory=list)
     parrent_pointer : weakref.ProxyType= field(default = None)
     left_pointer : weakref.ProxyType= field(default = None)
     right_pointer : weakref.ProxyType= field(default = None)
@@ -93,7 +94,7 @@ class FixedBtree:
         pass
 
 
-    #on this step received keys looks like data_pointer and key encoded by custom encoding already. (not just utf-8 encoding)
+    #on this step received key looks like data_pointer and term encoded by custom encoding already. (not just utf-8 encoding)
     def insertKey(self,received_key:Key,node_where_is_insert:Optional[ReferencableNode | weakref.ProxyType] = None):
         
         if node_where_is_insert is None:
@@ -160,7 +161,7 @@ class FixedBtree:
             new_right_node.parrent_pointer = weakref.proxy(self.root)
             new_right_node.left_pointer = weakref.proxy(new_left_node)
             new_left_node.right_pointer = weakref.proxy(new_right_node)
-            fdas
+            
             self.tree_length+=1
             
         else:
@@ -182,6 +183,7 @@ class FixedBtree:
     
     '''
         Convert tree to binary format on disk.
+        Serialize tree's structure.
     ''' 
     
     def storeTree(self,filepath : str = '/tmp/filepath.bin'):
@@ -199,6 +201,7 @@ class FixedBtree:
             # if len(encoded_root)!=((self.keylen+12)*self.root.key_quantity+9):
             #     raise RuntimeError(f'Encoded size isnt fit in expected size : ({len(encoded_root)} : {((self.keylen+13)*self.root.key_quantity+8)})') 
             binary_output.write(encoded_root + struct.pack('<IH',file_offset,len(encoded_root)))
+            # length = len(encoded_root)
             self.root = ReferencableNode()
             
 
@@ -228,12 +231,17 @@ class FixedBtree:
         First part for encoding contain 'l' letter, which coded by one char, one short unsigned integer, associated with quantity of keys and then
         all keys with whitespace separated writed sequentially.
         After that, the same process applying to data_pointers and these codes will be apended to the previous encoding.
-        Each code of data_pointers encoding contain to digits, offset in sought file and length of sought record respectively,
+        Each code of data_pointers encoding contain two digits, offset in sought file and length of sought record respectively,
         both of which are encoded as unsigned integer.
         
         3. Node is inner
         Almost all actions listed above will be the same, except in encoding of data_pointers will be appended one pointer in this file to child node,
         associated with specific key of this node.
+        
+        
+        New rules have arise : all digits received in this process will be encoded with packedBCD, hence, their decoding 
+        should invoke decodeBCD. All digits, except key_quantity ,just for simplify decoding.
+        Bad idea. Discarded.
 
     ''' 
     
@@ -249,6 +257,11 @@ class FixedBtree:
             else:
                 encoded_record+=struct.pack('<IH',key.data_pointer[0],key.data_pointer[1])
         return encoded_record
+        
+        # if not node.leaf:
+        #     temp_holder = []
+        #     for pair in zip_longest(node.pointers,node.keys):
+                
         
             
     
@@ -276,15 +289,16 @@ class TreeHolder:
 
 class TraverseThroughTree:
     
-    def __init__(self,pathtofile : str,term):
+    def __init__(self,pathtofile : str,pathtoindex : str,term):
         self.pathtofile = pathtofile
         self.sought_term = term
         self.keylen = int(re.search('\d+',os.path.basename(pathtofile)).group(0))
+        self.indexpath = pathtoindex
         
     def traverse(self) -> Optional[bytes]:
         try:
-            with open(self.pathtofile) as self.treefile:
-                os.lseek(tree,os.SEEK_END,-struct.calcsize('<IH'))
+            with open(self.pathtofile,'rb') as self.treefile:
+                os.lseek(self.treefile.fileno(),-struct.calcsize('<IH'),os.SEEK_END)
                 # root_offset, root_length = struct.unpack('<IH',self.treefile.read())
                 # os.lseek(self.treefile,os.SEEK_SET,root_offset)
                 # root = self.treefile.read(root_length)
@@ -298,7 +312,8 @@ class TraverseThroughTree:
             
             
             
-    def __BSnode(self,keys : list[bytes] = None, pointers : list[bytes] = None,uppr_border:int = 0,lowr_border:int = 0) -> Optional[bytes]:
+    def _BSnode(self,keys : list[bytes], data_pointers :list[tuple[int,int]],\
+        uppr_border:int = 0,lowr_border:int = 0,node_pointers : list[tuple[int,int]] = None) -> Optional[bytes]:
         # if keys is None:
         #     key_quantity = struct.unpack_from('<H',node,struct.calcsize('<c'))
         #     keys = [struct.unpack_from(f'<{self.keylen}s',node,struct.calcsize('cH') + i*struct.calcsize(f'{self.keylen}s')) for i in range(key_quantity)]
@@ -307,26 +322,32 @@ class TraverseThroughTree:
         #     lowr_border = 0
         if uppr_border-lowr_border==1:
             if keys[lowr_border]<self.sought_term < keys[uppr_border]:
-                return self.__proxyLayer(pointers[2*lowr_border])
+                return self.__proxyLayer(node_pointers[2*lowr_border])
         if uppr_border == lowr_border:
             if keys[uppr_border] != self.sought_term:
                 return None
-            return self.__returnDataFromIndexFile(pointers[2*uppr_border+1])
+            return self.__returnDataFromIndexFile(node_pointers[2*uppr_border+1])
         
         median = (uppr_border+lowr_border)//2
         if keys[median]==self.sought_term:
-            return self.__returnDataFromIndexFile(pointers[2*median+1])
+            return self.__returnDataFromIndexFile(node_pointers[2*median+1])
         if keys[median] < self.sought_term:
-            return self.__BSnode(keys,pointers,uppr_border,median+1)
-        return self.__BSnode(keys,pointers,lowr_border,median-1)
+            return self._BSnode(keys,node_pointers,uppr_border,median+1)
+        return self._BSnode(keys,node_pointers,lowr_border,median-1)
          
     
-    def __BSleaf(self,keys : list[bytes],pointers : list[bytes], upper_bound:int,lower_bound:int) -> Optional[bytes]:
+    def _BSleaf(self,keys : list[bytes],data_pointers : list[tuple[int,int]] ,\
+        upper_bound:int=0,lower_bound:int=0,node_pointers : list[tuple[int,int]]=None) -> Optional[bytes]:
         if upper_bound == lower_bound:
             if keys[upper_bound]!= self.sought_term:
                 return None
-            return self.__returnDataFromIndexFile(pointers[upper_bound])
+            return self.__returnDataFromIndexFile(data_pointers[upper_bound])
         median = (upper_bound+lower_bound)//2
+        if self.sought_term < keys[median]:
+            return self._BSleaf(keys,data_pointers,median-1,lower_bound)
+        return self._BSleaf(keys,data_pointers,upper_bound,median)
+    
+        
 
             
                 
@@ -335,20 +356,54 @@ class TraverseThroughTree:
     
     def __proxyLayer(self,pointer : bytes):
         node_offset,node_length = struct.unpack('<IH',pointer)
-        os.lseek(self.treefile,os.SEEK_SET,node_offset)
+        os.lseek(self.treefile.fileno(),node_offset,os.SEEK_SET)
         node = self.treefile.read(node_length)
-        type,key_quantity, *_= struct.unpack_from('<cH',node,0)
+        node_type,key_quantity, *_= struct.unpack_from('<cH',node,0)
         #key_quantity,*_ = struct.unpack_from('<H',node,struct.calcsize('<c'))
-        keys = [struct.unpack_from(f'<{self.keylen}s',node,struct.calcsize('cH') + i*struct.calcsize(f'{self.keylen}s')) for i in range(key_quantity)]
-        pointers = [struct.unpack_from('<IH',node,struct.calcsize(f'<cH{key_quantity*self.keylen}') + i*6) for i in range(2*key_quantity+1)]
+        
+        terms = [struct.unpack_from(f'<{self.keylen}s',node,struct.calcsize('<cH') + i*struct.calcsize(f'{self.keylen}s'))[0] for i in range(key_quantity)]
+        # b = node
+        # pointers = [struct.unpack_from('<IH',node,struct.calcsize(f'<cH{key_quantity*self.keylen}') + i*6) for i in range(2*key_quantity+1)]
+        dp_pointers_tied = []
+        temp_offset = struct.calcsize('<cH') +\
+                struct.calcsize(f'<{key_quantity * self.keylen}s')
+                
+        
+        for _ in range(key_quantity if node_type == b'l' else 2*key_quantity+1):
+            dp_pointers_tied.append(struct.unpack_from('<IH',node,temp_offset+ 6*_))
+        # dp_pointers_tied = [elem for elem in struct.unpack_from('<IH',node,struct.calcsize('<cH') + 6*_) for _ in range(key_quantity if\
+        #     node_type == b'l' else 2*key_quantity+1)]
+        
+        if node_type == b'l':
+            data_pointers = [(elem[0],elem[1]) for elem in dp_pointers_tied]
+            node_pointers = []
+        
+        
+        else:
+            node_pointers = []
+            data_pointers = []
+            for id,record in enumerate(dp_pointers_tied):
+                if id%2==0:
+                    data_pointers.append((record[0],record[1]))
+                else:
+                    node_pointers.append((record[0],record[1]))
+            
+    
+            
+            
         # if type == 'l':
         #     return self.__BSleaf(keys,pointers,0,key_quantity-1)
         # return self.__BSnode()
-        return self.__getattribute__(f'__BS{NODETYPE[type]}')(keys,pointers,0,key_quantity-1) 
+        return self.__getattribute__(f'_BS{NODETYPE[node_type]}')(terms,data_pointers,0,key_quantity-1,node_pointers) 
         
         
-    def __returnDataFromIndexFile(self,test):
-        pass
+    def __returnDataFromIndexFile(self,record_properties : tuple[int,int]):
+        with open(self.indexpath, 'rb') as binary_index:
+            os.lseek(binary_index.fileno(),record_properties[0],os.SEEK_SET)
+            return decodePackedBCD(binary_index.read(record_properties[1]))
+    
+            
+            
 if __name__ == "__main__":
     # tree = TreeHolder()
     # for elem in DICTIONARY:
@@ -362,8 +417,9 @@ if __name__ == "__main__":
     # print(b)
     tree = FixedBtree()
     tree.makeTree(4,3)
-    for elem in LENGTHDEPENDSDICTIONARY:
+    for elem in LENGTHDEPENDSDICTIONARY[:3]:
         tree.insertKey(Key([1,1],elem))
         
-    tree.storeTree('./tree.bin')
+    tree.storeTree('./3tree.bin')
+    res = TraverseThroughTree('./3tree.bin','./index.bin',b'\x33\x23\x1f').traverse()
     pass

@@ -107,7 +107,10 @@ def decodePackedBCD(bytestring:bytes)->list[int]:
 #     # a = b'\xfa\xaa\xfa'
 #     # for elem in IterateOverNibbles(a):
 #     #     print(elem)
-    
+    # a = [123,13,234,33,500,60]
+    # ecnoded = packedBCD(a)
+    # decoded = decodePackedBCD(ecnoded)
+    # pass
 #     a = [2,13,24,33,63,101]
 #     a1 = [22,43,58,99,123,231,400]
 #     a2 = [1,2,3,4,5,6,7,12,56]

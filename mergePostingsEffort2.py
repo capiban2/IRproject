@@ -92,14 +92,17 @@ class MergerSameFile:
     def __iter__(self):
         self.filedescriptors = [open(os.path.join(self.dirname,filename)) for filename in self.filenames]
         self.buffer = [fd.read(self.bk).split(' ') for fd in self.filedescriptors]
+        self.previous = ''
         self.queue = []
         
         return self
-    
+    '''
+        TODO : must add main Main preporty to actually MERGE files// 
+    '''
     def __next__(self):
         is_closed = False
         is_sorted = True
-        if len(self.queue)<=self.quantity_files:
+        if len(self.queue)<self.quantity_files:
             for id,subbufer in enumerate(self.buffer):
                 if len(subbufer)==1:
                     ret_val = self.__helper(id)
@@ -333,12 +336,13 @@ def mergeSameDir1(dirname : str, blocksize : int) ->None:
     # test = list((dirname,dirlist[_*(quantity_files_per_proc+1):(1+_)*(quantity_files_per_proc) +_],
     #           blocksize,os.path.join(dirname,f'result0{_}.out')) for _ in range(os.cpu_count()))
     # pass
-    with multiprocessing.Pool() as mp:
-        mp.starmap(
-            mergeChunkFiles,
-            ((dirname,dirlist[_*(quantity_files_per_proc):(1+_)*(quantity_files_per_proc)],
-             quantity_files_per_proc, blocksize,os.path.join(dirname,f'result0{_}.out')) for _ in range(os.cpu_count()))
-        )
+    if len(dirlist)>os.cpu_count()*2:
+        with multiprocessing.Pool() as mp:
+            mp.starmap(
+                mergeChunkFiles,
+                ((dirname,dirlist[_*(quantity_files_per_proc):(1+_)*(quantity_files_per_proc)],
+                quantity_files_per_proc, blocksize,os.path.join(dirname,f'result0{_}.out')) for _ in range(os.cpu_count()))
+            )
     # dirlist = os.listdir(dirname)
     # with multiprocessing.Pool() as mp:
     #     mp.starmap(
@@ -366,7 +370,7 @@ if __name__ == '__main__':
     
     
     start  = time.perf_counter() 
-    mergeSameDir1(INDIR,512)
+    mergeSameDir1('/home/iv/Documents/mydir/kursovaya/testfiles',512)
     print(time.perf_counter()-start)
     
     # a = [(_*2,(_+1)*2) for _ in range(os.cpu_count()//2)]
