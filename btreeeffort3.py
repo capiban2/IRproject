@@ -41,7 +41,7 @@ LENGTHDEPENDSDICTIONARY : list[bytes] = [
 ]
 
 '''
-    this enums is used to distinguish between words of rare length and average;
+    this enums is using to distinguish between words of rare length and average;
     in average case will have many more words, hence there should be much more keys per level
     long or short words ,except stop-words, probability less and consequently if we have one degree for 
     both cases, in second we will have short tree with big nodes; then we can achieve significant imppvement, i guess,
@@ -298,7 +298,7 @@ class TraverseThroughTree:
     def traverse(self) -> Optional[bytes]:
         try:
             with open(self.pathtofile,'rb') as self.treefile:
-                os.lseek(self.treefile.fileno(),-struct.calcsize('<IH'),os.SEEK_END)
+                self.treefile.seek(-struct.calcsize('<IH'),os.SEEK_END)
                 # root_offset, root_length = struct.unpack('<IH',self.treefile.read())
                 # os.lseek(self.treefile,os.SEEK_SET,root_offset)
                 # root = self.treefile.read(root_length)
@@ -306,7 +306,8 @@ class TraverseThroughTree:
                 #     return self.__BSleaf(root)
                 # else:
                 #     return self.__BSnode(root)
-                return self.__proxyLayer(self.treefile.read())
+                offset,length = struct.unpack('<IH',self.treefile.read())
+                return self.__proxyLayer(offset,length)
         except OSError:
             raise RuntimeError
             
@@ -320,17 +321,23 @@ class TraverseThroughTree:
         #     pointers = [struct.unpack_from('<IH',node,struct.calcsize(f'<cH{key_quantity*self.keylen}') + i*6) for i in range(2*key_quantity+1)]
         #     uppr_border = key_quantity-1
         #     lowr_border = 0
-        if uppr_border-lowr_border==1:
-            if keys[lowr_border]<self.sought_term < keys[uppr_border]:
-                return self.__proxyLayer(node_pointers[2*lowr_border])
-        if uppr_border == lowr_border:
-            if keys[uppr_border] != self.sought_term:
-                return None
-            return self.__returnDataFromIndexFile(node_pointers[2*uppr_border+1])
-        
+        # if uppr_border-lowr_border==1:
+        #     if keys[lowr_border]<self.sought_term < keys[uppr_border]:
+        #         return self.__proxyLayer(node_pointers[uppr_border])
+        # if uppr_border == lowr_border:
+        #     if keys[uppr_border] != self.sought_term:
+        #         return None
+        #     return self.__returnDataFromIndexFile(data_pointers[uppr_border])
+        if uppr_border==lowr_border:
+            if self.sought_term == keys[uppr_border]:
+                return self.__returnDataFromIndexFile(data_pointers[uppr_border])
+            child_node_offset,child_node_length = node_pointers[uppr_border if keys[uppr_border] > self.sought_term else uppr_border+1]
+            # os.lseek(self.treefile.fileno(),child_node_offset,os.SEEK_SET)
+            return self.__proxyLayer(child_node_offset,child_node_length)
+                                                      
         median = (uppr_border+lowr_border)//2
-        if keys[median]==self.sought_term:
-            return self.__returnDataFromIndexFile(node_pointers[2*median+1])
+        # if keys[median]==self.sought_term:
+        #     return self.__returnDataFromIndexFile(node_pointers[2*median+1])
         if keys[median] < self.sought_term:
             return self._BSnode(keys,node_pointers,uppr_border,median+1)
         return self._BSnode(keys,node_pointers,lowr_border,median-1)
@@ -338,14 +345,21 @@ class TraverseThroughTree:
     
     def _BSleaf(self,keys : list[bytes],data_pointers : list[tuple[int,int]] ,\
         upper_bound:int=0,lower_bound:int=0,node_pointers : list[tuple[int,int]]=None) -> Optional[bytes]:
-        if upper_bound == lower_bound:
-            if keys[upper_bound]!= self.sought_term:
-                return None
-            return self.__returnDataFromIndexFile(data_pointers[upper_bound])
-        median = (upper_bound+lower_bound)//2
-        if self.sought_term < keys[median]:
-            return self._BSleaf(keys,data_pointers,median-1,lower_bound)
-        return self._BSleaf(keys,data_pointers,upper_bound,median)
+        while(upper_bound!=lower_bound):
+            median = (lower_bound+upper_bound)//2
+            if keys[median] < self.sought_term:
+                lower_bound = median+1
+            else:
+                upper_bound = median
+        return self.__returnDataFromIndexFile(data_pointers[upper_bound]) if keys[upper_bound] == self.sought_term else None
+        # if upper_bound == lower_bound:
+        #     if keys[upper_bound]!= self.sought_term:
+        #         return None
+        #     return self.__returnDataFromIndexFile(data_pointers[upper_bound])
+        # median = (upper_bound+lower_bound)//2
+        # if self.sought_term > keys[median]:
+        #     return self._BSleaf(keys,data_pointers,upper_bound,median+1)
+        # return self._BSleaf(keys,data_pointers,median-1,lower_bound)
     
         
 
@@ -353,13 +367,24 @@ class TraverseThroughTree:
                 
         
             
+    '''
+        have been catching situation ,which have no explanation to exist, hence, lseek discarded/ ( for some reasons in cases to simply move 
+        cursor to beginning retreived negative value of offset after applying that func)
+        perhaps mybad
+    ''' 
     
-    def __proxyLayer(self,pointer : bytes):
-        node_offset,node_length = struct.unpack('<IH',pointer)
-        os.lseek(self.treefile.fileno(),node_offset,os.SEEK_SET)
+    def __proxyLayer(self,node_offset : int,node_length : int):
+        # node_offset,node_length = struct.unpack_from('<IH',pointer)
+        # os.lseek(self.treefile.fileno(),node_offset,os.SEEK_SET)
+        
+        
+        self.treefile.seek(node_offset,os.SEEK_SET)
+        # postion = self.treefile.tell()
         node = self.treefile.read(node_length)
+        # position = self.treefile.tell()
         node_type,key_quantity, *_= struct.unpack_from('<cH',node,0)
         #key_quantity,*_ = struct.unpack_from('<H',node,struct.calcsize('<c'))
+        
         
         terms = [struct.unpack_from(f'<{self.keylen}s',node,struct.calcsize('<cH') + i*struct.calcsize(f'{self.keylen}s'))[0] for i in range(key_quantity)]
         # b = node
@@ -384,9 +409,9 @@ class TraverseThroughTree:
             data_pointers = []
             for id,record in enumerate(dp_pointers_tied):
                 if id%2==0:
-                    data_pointers.append((record[0],record[1]))
-                else:
                     node_pointers.append((record[0],record[1]))
+                else:
+                    data_pointers.append((record[0],record[1]))
             
     
             
@@ -394,12 +419,12 @@ class TraverseThroughTree:
         # if type == 'l':
         #     return self.__BSleaf(keys,pointers,0,key_quantity-1)
         # return self.__BSnode()
-        return self.__getattribute__(f'_BS{NODETYPE[node_type]}')(terms,data_pointers,0,key_quantity-1,node_pointers) 
+        return self.__getattribute__(f'_BS{NODETYPE[node_type]}')(terms,data_pointers,key_quantity-1,0,node_pointers) 
         
         
     def __returnDataFromIndexFile(self,record_properties : tuple[int,int]):
         with open(self.indexpath, 'rb') as binary_index:
-            os.lseek(binary_index.fileno(),record_properties[0],os.SEEK_SET)
+            binary_index.seek(record_properties[0],os.SEEK_SET)
             return decodePackedBCD(binary_index.read(record_properties[1]))
     
             
@@ -417,9 +442,9 @@ if __name__ == "__main__":
     # print(b)
     tree = FixedBtree()
     tree.makeTree(4,3)
-    for elem in LENGTHDEPENDSDICTIONARY[:3]:
+    for elem in LENGTHDEPENDSDICTIONARY[:4]:
         tree.insertKey(Key([1,1],elem))
         
     tree.storeTree('./3tree.bin')
-    res = TraverseThroughTree('./3tree.bin','./index.bin',b'\x33\x23\x1f').traverse()
+    res = TraverseThroughTree('./3tree.bin','./index.bin',b'\x15\x16\x18').traverse()
     pass
