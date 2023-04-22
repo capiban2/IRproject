@@ -302,6 +302,9 @@ class TreeHolder:
     All terms sent to func have equal length.
 '''
 
+
+
+
 class TraverseThroughTree:
     
     def __init__(self,pathtofile : str,pathtoindex : str,terms:list[bytes]):
@@ -334,13 +337,14 @@ class TraverseThroughTree:
                 '''
                     Will contain either None or offset\length pair in each element respectively.
                 '''
-                return_values = []
+                
+                record_properties = []
                 
                 for term in self.sought_terms:
                     cached_info = self.cachedTree.searchTerm(term)
                     if cached_info is not None:
                         if cached_info[0] == 'd':
-                            return_values.append(cached_info[1])
+                            record_properties.append(cached_info[1])
                             continue
                         offset,length = cached_info[1]
                     else:
@@ -352,9 +356,10 @@ class TraverseThroughTree:
                         did it i guess
                     '''
                     
-                    return_values.append(self.__proxyLayer(term,offset,length))
+                    record_properties.append(self.__proxyLayer(term,offset,length))
         except OSError:
             raise RuntimeError
+        return  self.__returnDataFromIndexFile(record_properties)
             
             
             
@@ -487,10 +492,16 @@ class TraverseThroughTree:
         return self.__getattribute__(f'_BS{NODETYPE[node_type]}')(sought_term,terms,data_pointers,key_quantity-1,0,node_pointers) 
         
         
-    def __returnDataFromIndexFile(self,record_properties : tuple[int,int]):
+    def __returnDataFromIndexFile(self,record_properties : list[tuple[int,int] | None]) -> list[list[int] | None]:
+        return_postings = []
         with open(self.indexpath, 'rb') as binary_index:
-            binary_index.seek(record_properties[0],os.SEEK_SET)
-            return decodePackedBCD(binary_index.read(record_properties[1]))
+            for properties in record_properties:
+                if properties is None:
+                    return_postings.append(None)
+                    continue
+                    
+                binary_index.seek(properties[0],os.SEEK_SET)
+                return_postings.append(decodePackedBCD(binary_index.read(properties[1])))
     
 
 
