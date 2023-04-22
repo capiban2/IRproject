@@ -118,14 +118,21 @@ class FixedBtree:
             return
         
         node_number = node_where_is_insert.key_quantity-1
-        while node_number>0:
+        while node_number>=0:
             if node_where_is_insert.keys[node_number].term < received_key.term:
                 break
             node_number-=1
+        # if node_number<0:
+        #     node_number = 0
+        node_number+=1
         if node_where_is_insert.pointers[node_number].key_quantity == self.degree-1:
             self.__split_child(node_where_is_insert,node_number)
             if node_where_is_insert.keys[node_number].term < received_key.term:
-                node_number+=1
+                node_number+=1 
+        '''
+            Probably mistake have made here.
+        '''
+        
         self.insertKey(received_key,node_where_is_insert.pointers[node_number])
                     
 
@@ -194,7 +201,7 @@ class FixedBtree:
                 while not current_node.pointers[0].leaf:
                     current_node = current_node.pointers[0]
                 while current_node is not None:
-                    file_offset+=self.__storeOneLevel(file_offset,current_node,'right',binary_output)
+                    file_offset=self.__storeOneLevel(file_offset,current_node,'right',binary_output)
                     current_node = current_node.parrent_pointer
             
             encoded_root = self.__packNode(self.root) 
@@ -339,8 +346,8 @@ class TraverseThroughTree:
         # if keys[median]==self.sought_term:
         #     return self.__returnDataFromIndexFile(node_pointers[2*median+1])
         if keys[median] < self.sought_term:
-            return self._BSnode(keys,node_pointers,uppr_border,median+1)
-        return self._BSnode(keys,node_pointers,lowr_border,median-1)
+            return self._BSnode(keys,data_pointers,uppr_border,median+1,node_pointers)
+        return self._BSnode(keys,data_pointers,lowr_border,median,node_pointers)
          
     
     def _BSleaf(self,keys : list[bytes],data_pointers : list[tuple[int,int]] ,\
@@ -389,29 +396,45 @@ class TraverseThroughTree:
         terms = [struct.unpack_from(f'<{self.keylen}s',node,struct.calcsize('<cH') + i*struct.calcsize(f'{self.keylen}s'))[0] for i in range(key_quantity)]
         # b = node
         # pointers = [struct.unpack_from('<IH',node,struct.calcsize(f'<cH{key_quantity*self.keylen}') + i*6) for i in range(2*key_quantity+1)]
-        dp_pointers_tied = []
+        # dp_pointers_tied = []
+        
         temp_offset = struct.calcsize('<cH') +\
                 struct.calcsize(f'<{key_quantity * self.keylen}s')
                 
+        node_pointers,data_pointers = [],[]
+        if node_type == b'l':
+            
+            data_pointers = [struct.unpack_from('<IH',node,temp_offset+ 6*_) for _ in range(key_quantity)]
+        else:
+            for _ in range(2*key_quantity+1):
+                cur_record = struct.unpack_from('<IH',node,temp_offset+ 6*_)
+                if _%2==0:
+                    node_pointers.append(cur_record)
+                else:
+                    data_pointers.append(cur_record)
         
-        for _ in range(key_quantity if node_type == b'l' else 2*key_quantity+1):
-            dp_pointers_tied.append(struct.unpack_from('<IH',node,temp_offset+ 6*_))
+        
+        # for _ in range(key_quantity if node_type == b'l' else 2*key_quantity+1):
+        #     dp_pointers_tied.append(struct.unpack_from('<IH',node,temp_offset+ 6*_))
         # dp_pointers_tied = [elem for elem in struct.unpack_from('<IH',node,struct.calcsize('<cH') + 6*_) for _ in range(key_quantity if\
         #     node_type == b'l' else 2*key_quantity+1)]
         
-        if node_type == b'l':
-            data_pointers = [(elem[0],elem[1]) for elem in dp_pointers_tied]
-            node_pointers = []
         
         
-        else:
-            node_pointers = []
-            data_pointers = []
-            for id,record in enumerate(dp_pointers_tied):
-                if id%2==0:
-                    node_pointers.append((record[0],record[1]))
-                else:
-                    data_pointers.append((record[0],record[1]))
+        
+        # if node_type == b'l':
+        #     data_pointers = [(elem[0],elem[1]) for elem in dp_pointers_tied]
+        #     node_pointers = []
+        
+        
+        # else:
+        #     node_pointers = []
+        #     data_pointers = []
+        #     for id,record in enumerate(dp_pointers_tied):
+        #         if id%2==0:
+        #             node_pointers.append((record[0],record[1]))
+        #         else:
+        #             data_pointers.append((record[0],record[1]))
             
     
             
@@ -442,9 +465,9 @@ if __name__ == "__main__":
     # print(b)
     tree = FixedBtree()
     tree.makeTree(4,3)
-    for elem in LENGTHDEPENDSDICTIONARY[:4]:
+    for elem in LENGTHDEPENDSDICTIONARY:
         tree.insertKey(Key([1,1],elem))
         
     tree.storeTree('./3tree.bin')
-    res = TraverseThroughTree('./3tree.bin','./index.bin',b'\x15\x16\x18').traverse()
+    res = TraverseThroughTree('./3tree.bin','./index.bin',b'\x18\x19\x20').traverse()
     pass
