@@ -524,5 +524,5 @@ if __name__ == "__main__":
         tree.insertKey(Key([1,1],elem))
         
     tree.storeTree('./3tree.bin')
-    res = TraverseThroughTree('./3tree.bin','./index.bin',b'\x1c\x1d\x1a').traverse()
+    res = TraverseThroughTree('./','./index.bin',[b'\x1c\x1d\x1a',b'\x22\x11\x33']).traverse()
     pass
