@@ -10,6 +10,8 @@ import re
 from itertools import zip_longest
 import weakref
 from encodeDigits import packedBCD,decodePackedBCD
+from cachedTree import CachedTree
+
 
 DICTIONARY : list[str] = [
     'run','arbitary','never',
@@ -67,7 +69,7 @@ NODETYPE : dict[bytes,str] = {
 
 @dataclass(slots=True)
 class Key:
-    data_pointer : list[tuple[int,int,]] = field(default_factory=list)
+    data_pointer : tuple[int,int,] = field(default_factory=tuple)
     term : bytes =field(default=b'') 
     
 @dataclass(slots=True)
@@ -296,18 +298,31 @@ class TreeHolder:
         
         self.TREEES[len(treeKey.term)].insertKey(treeKey)
        
+'''
+    All terms sent to func have equal length.
+'''
 
 class TraverseThroughTree:
     
-    def __init__(self,pathtofile : str,pathtoindex : str,term):
+    def __init__(self,pathtofile : str,pathtoindex : str,terms:list[bytes]):
+        '''
+            pathtofile = pathtodir
+        '''
         self.pathtofile = pathtofile
-        self.sought_term = term
-        self.keylen = int(re.search('\d+',os.path.basename(pathtofile)).group(0))
+        self.sought_terms = terms
+        self.keylen = len(self.sought_terms[0])
         self.indexpath = pathtoindex
+        if len(self.sought_terms)>1:
+            self.cachedTree = CachedTree()
         
-    def traverse(self) -> Optional[bytes]:
+        
+        
+    def traverse(self) -> list[Optional[bytes]]:
+        
+        
+        
         try:
-            with open(self.pathtofile,'rb') as self.treefile:
+            with open(os.path.join(self.pathtofile,f'{self.keylen}tree.bin'),'rb') as self.treefile:
                 self.treefile.seek(-struct.calcsize('<IH'),os.SEEK_END)
                 # root_offset, root_length = struct.unpack('<IH',self.treefile.read())
                 # os.lseek(self.treefile,os.SEEK_SET,root_offset)
@@ -316,14 +331,34 @@ class TraverseThroughTree:
                 #     return self.__BSleaf(root)
                 # else:
                 #     return self.__BSnode(root)
-                offset,length = struct.unpack('<IH',self.treefile.read())
-                return self.__proxyLayer(offset,length)
+                '''
+                    Will contain either None or offset\length pair in each element respectively.
+                '''
+                return_values = []
+                
+                for term in self.sought_terms:
+                    cached_info = self.cachedTree.searchTerm(term)
+                    if cached_info is not None:
+                        if cached_info[0] == 'd':
+                            return_values.append(cached_info[1])
+                            continue
+                        offset,length = cached_info[1]
+                    else:
+                        offset,length = struct.unpack('<IH',self.treefile.read())
+                    
+                    '''
+                        TODO: change returning value in that func to pair offset\length in index file instead of merely returning posting from index file,
+                        for some speed up, because all postings correspond to specific not None result of term treating will be read at same time.
+                        did it i guess
+                    '''
+                    
+                    return_values.append(self.__proxyLayer(term,offset,length))
         except OSError:
             raise RuntimeError
             
             
             
-    def _BSnode(self,keys : list[bytes], data_pointers :list[tuple[int,int]],\
+    def _BSnode(self,sought_term : bytes , keys : list[bytes], data_pointers :list[tuple[int,int]],\
         uppr_border:int = 0,lowr_border:int = 0,node_pointers : list[tuple[int,int]] = None) -> Optional[bytes]:
         # if keys is None:
         #     key_quantity = struct.unpack_from('<H',node,struct.calcsize('<c'))
@@ -339,29 +374,30 @@ class TraverseThroughTree:
         #         return None
         #     return self.__returnDataFromIndexFile(data_pointers[uppr_border])
         if uppr_border==lowr_border:
-            if self.sought_term == keys[uppr_border]:
+            if sought_term == keys[uppr_border]:
                 return self.__returnDataFromIndexFile(data_pointers[uppr_border])
-            child_node_offset,child_node_length = node_pointers[uppr_border if keys[uppr_border] > self.sought_term else uppr_border+1]
+            child_node_offset,child_node_length = node_pointers[uppr_border if keys[uppr_border] > sought_term else uppr_border+1]
             # os.lseek(self.treefile.fileno(),child_node_offset,os.SEEK_SET)
-            return self.__proxyLayer(child_node_offset,child_node_length)
+            return self.__proxyLayer(sought_term,child_node_offset,child_node_length)
                                                       
         median = (uppr_border+lowr_border)//2
         # if keys[median]==self.sought_term:
         #     return self.__returnDataFromIndexFile(node_pointers[2*median+1])
-        if keys[median] < self.sought_term:
-            return self._BSnode(keys,data_pointers,uppr_border,median+1,node_pointers)
-        return self._BSnode(keys,data_pointers,lowr_border,median,node_pointers)
+        if keys[median] < sought_term:
+            return self._BSnode(sought_term,keys,data_pointers,uppr_border,median+1,node_pointers)
+        return self._BSnode(sought_term,keys,data_pointers,lowr_border,median,node_pointers)
          
     
-    def _BSleaf(self,keys : list[bytes],data_pointers : list[tuple[int,int]] ,\
-        upper_bound:int=0,lower_bound:int=0,node_pointers : list[tuple[int,int]]=None) -> Optional[bytes]:
+    def _BSleaf(self,sought_term : bytes,keys : list[bytes],data_pointers : list[tuple[int,int]] ,\
+        upper_bound:int=0,lower_bound:int=0,node_pointers : list[tuple[int,int]]=None) -> Optional[tuple[int,int]]:
         while(upper_bound!=lower_bound):
             median = (lower_bound+upper_bound)//2
-            if keys[median] < self.sought_term:
+            if keys[median] < sought_term:
                 lower_bound = median+1
             else:
                 upper_bound = median
-        return self.__returnDataFromIndexFile(data_pointers[upper_bound]) if keys[upper_bound] == self.sought_term else None
+        #return self.__returnDataFromIndexFile(data_pointers[upper_bound]) if keys[upper_bound] == sought_term else None
+        return data_pointers[upper_bound] if keys[upper_bound] == sought_term else None 
         # if upper_bound == lower_bound:
         #     if keys[upper_bound]!= self.sought_term:
         #         return None
@@ -383,7 +419,7 @@ class TraverseThroughTree:
         perhaps mybad
     ''' 
     
-    def __proxyLayer(self,node_offset : int,node_length : int):
+    def __proxyLayer(self,sought_term,node_offset : int,node_length : int):
         # node_offset,node_length = struct.unpack_from('<IH',pointer)
         # os.lseek(self.treefile.fileno(),node_offset,os.SEEK_SET)
         
@@ -445,7 +481,10 @@ class TraverseThroughTree:
         # if type == 'l':
         #     return self.__BSleaf(keys,pointers,0,key_quantity-1)
         # return self.__BSnode()
-        return self.__getattribute__(f'_BS{NODETYPE[node_type]}')(terms,data_pointers,key_quantity-1,0,node_pointers) 
+        if len(self.sought_terms)>1:
+            self.cachedTree.insertNode(key_quantity,terms,node_pointers,data_pointers)
+        
+        return self.__getattribute__(f'_BS{NODETYPE[node_type]}')(sought_term,terms,data_pointers,key_quantity-1,0,node_pointers) 
         
         
     def __returnDataFromIndexFile(self,record_properties : tuple[int,int]):
