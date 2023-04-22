@@ -108,10 +108,11 @@ class FixedBtree:
                 node_where_is_insert.keys.append(received_key)
                 return
             number = node_where_is_insert.key_quantity-2
-            while number>0:
+            while number>=0:
                 if node_where_is_insert.keys[number].term < received_key.term:
                     break
                 number-=1
+            number+=1
             
                 
             node_where_is_insert.keys.insert(number,received_key)
@@ -469,5 +470,5 @@ if __name__ == "__main__":
         tree.insertKey(Key([1,1],elem))
         
     tree.storeTree('./3tree.bin')
-    res = TraverseThroughTree('./3tree.bin','./index.bin',b'\x18\x19\x20').traverse()
+    res = TraverseThroughTree('./3tree.bin','./index.bin',b'\x1c\x1d\x1a').traverse()
     pass
