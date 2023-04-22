@@ -88,6 +88,8 @@ class ReferencableNode(Node):
  
     def __del__(self):
        print('delete')
+   
+
     
 class FixedBtree:
     def __init__(self):
@@ -451,8 +453,10 @@ class TraverseThroughTree:
             binary_index.seek(record_properties[0],os.SEEK_SET)
             return decodePackedBCD(binary_index.read(record_properties[1]))
     
-            
-            
+
+
+
+
 if __name__ == "__main__":
     # tree = TreeHolder()
     # for elem in DICTIONARY:
