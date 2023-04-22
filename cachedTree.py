@@ -39,7 +39,7 @@ class CachedTree:
             segment_number-=1
         segment_number+=1
         if isinstance(node_where_is_to_insert.pointers[segment_number],CachedNode):
-            self.insertNode(key_quantity,terms,node_pointers,data_pointers,node_where_is_to_insert[segment_number])
+            self.insertNode(key_quantity,terms,node_pointers,data_pointers,node_where_is_to_insert.pointers[segment_number])
         else:
             tmp_keys = [Key(terms[_],data_pointers[_]) for _ in range(key_quantity)]
             node_where_is_to_insert.pointers[segment_number] = CachedNode(key_quantity,keys = tmp_keys,pointers = node_pointers)
@@ -56,20 +56,21 @@ class CachedTree:
     def searchTerm(self,term : bytes,node_where_is_search : Optional[CachedNode] = None) -> Optional[tuple[str,tuple[int,int]]]:
         if node_where_is_search is None:
             node_where_is_search = self.root
-            if node_where_is_search is None:
+            if node_where_is_search.key_quantity==0:
                 return None
         
         segment_number = node_where_is_search.key_quantity-1
         while(segment_number>=0):
-            if node_where_is_search.keys[segment_number] < term:
+            if node_where_is_search.keys[segment_number].term < term:
                 break
-            segment_number-=1
-        segment_number+=1
-        
-        if node_where_is_search.keys[segment_number].term == term:
+            if node_where_is_search.keys[segment_number].term == term:
             
-            return ('d',node_where_is_search.keys[segment_number].data_pointers)
+                return ('d',node_where_is_search.keys[segment_number].data_pointers)
+            segment_number-=1
+       
         
+        
+        segment_number+=1 
         
         if isinstance(node_where_is_search.pointers[segment_number],CachedNode):
             return self.searchTerm(term,node_where_is_search.pointers[segment_number])
