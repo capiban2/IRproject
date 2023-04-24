@@ -309,6 +309,24 @@ def mergeChunkFiles(dirname : str,chunk_of_files : list[str] ,chunksize : int ,b
 '''
     TODO: Move result file in other place, common storage(flatten nesting)
 '''
+def mergeSameDirs(dirnames : list[str],blksize : int,finalstoragepath : str) ->None:
+    with multiprocessing.Pool() as mp:
+        for dir in dirnames:
+            if len(os.listdir(dir))<=os.cpu_count():
+                continue
+            dirlist = os.listdir(dir)
+            quantity_files_per_proc = len(dirlist)//os.cpu_count()+1
+            mp.starmap(
+                mergeChunkFiles,
+                ((dir,dirlist[_*(quantity_files_per_proc):(1+_)*(quantity_files_per_proc)],
+                quantity_files_per_proc, blksize,os.path.join(dir,f'result0{_}.out')) for _ in range(os.cpu_count()))
+            
+            )
+    for dir in dirnames:
+        mergeChunkFiles(dir,os.listdir(dir),os.cpu_count(),blksize,f'{os.path.join(dir,os.path.basename(dir).split(".")[0])}.out')
+        os.rename(f'{os.path.join(dir,os.path.basename(dir))}.out',f'{os.path.join(finalstoragepath,os.path.basename(dir))}.out')
+        os.rmdir(dir)
+
 
 def mergeSameDir1(dirname : str, blocksize : int,finalstoragepath : str) ->None:
     quantity_files_per_proc = len(os.listdir(dirname))//os.cpu_count()+1
@@ -337,6 +355,7 @@ def mergeSameDir1(dirname : str, blocksize : int,finalstoragepath : str) ->None:
     #           blocksize,os.path.join(dirname,f'result0{_}.out')) for _ in range(os.cpu_count()))
     # pass
     if len(dirlist)>os.cpu_count():
+        
         with multiprocessing.Pool() as mp:
             mp.starmap(
                 mergeChunkFiles,
@@ -353,7 +372,7 @@ def mergeSameDir1(dirname : str, blocksize : int,finalstoragepath : str) ->None:
      
     mergeChunkFiles(dirname,os.listdir(dirname),os.cpu_count(),blocksize,f'{os.path.join(dirname,os.path.basename(dirname).split(".")[0])}.out')
     
-    os.rename(f'{os.path.join(dirname,os.path.basename(dirname))}.out',os.path.join(finalstoragepath,os.path.basename(dirname))) 
+    os.rename(f'{os.path.join(dirname,os.path.basename(dirname))}.out',f'{os.path.join(finalstoragepath,os.path.basename(dirname))}.out') 
     os.rmdir(dirname)
     # a =  list((dirname,_*(quantity_files_per_proc+1),quantity_files_per_proc,blocksize,
     #               os.path.join(dirname,f'result0{os.getpid()}.out'),0) for _ in range(os.cpu_count()))
