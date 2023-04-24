@@ -7,6 +7,7 @@ import asyncio
 import re
 import aiofiles.os
 import itertools
+import shutil
 def printInfo(val):
     print(os.getpid())
 
@@ -157,7 +158,7 @@ class MergeDifferentFiles:
     def __init__(self,dirname : str,blocksize : int) ->None:
         self.dirname = dirname
         self.filenames = os.listdir(dirname)
-        self.mapping = {filename:_ for _,filename in enumerate(self.filenames)}
+        self.mapping = {filename:_+1 for _,filename in enumerate(self.filenames)}
         
         self.blksz = blocksize
         self.quantity_files = len(self.filenames)
@@ -179,25 +180,25 @@ class MergeDifferentFiles:
         is_closed = False
         is_sorted = True
         if len(self.queue)<=self.quantity_files:
-            for id,subbufer in enumerate(self.buffer):
+            for id,subbufer in enumerate(self.buffer,start = 1):
                 
                 if len(subbufer)==1:
                     if not is_closed and self.__helper():
                         is_closed = True
                         
-                    current_term = subbufer[0]
-                    subbufer.pop(0)
+                current_term = subbufer[0]
+                subbufer.pop(0)
                     
                     
                     
                     
-                    if current_term not in self.queue_keys:
-                        self.queue[current_term] = [self.filenames[id]]
-                        self.queue_keys.append(current_term)
-                        if is_sorted:
-                            is_sorted = False
-                    else:
-                        self.queue[current_term].append(self.filenames[id])
+                if current_term not in self.queue_keys:
+                    self.queue[current_term] = [id]
+                    self.queue_keys.append(current_term)
+                    if is_sorted:
+                        is_sorted = False
+                else:
+                    self.queue[current_term].append(id)
         if not is_sorted:
             sorted(self.queue_keys) 
         try:
@@ -247,6 +248,10 @@ def mergeChunkFiles(dirname : str,chunk_of_files : list[str] ,chunksize : int ,b
     # filenames = (elem for elem in os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity] if re.search(f'result{epoch}\d+.out',elem) is None) \
     #     if epoch > 0 else os.listdir(dirname)[offset_start_with:offset_start_with+file_quantity]
     #pass
+    # print(f'Received in merger func, {resultfilename}:')
+    # print(chunk_of_files)
+    if len(chunk_of_files)!=chunksize:
+        raise RuntimeError
     with open(resultfilename,'w') as output_file:
         output = ''
         for term in MergerSameFile(dirname,chunk_of_files,chunksize,blocksize):
@@ -259,8 +264,22 @@ def mergeChunkFiles(dirname : str,chunk_of_files : list[str] ,chunksize : int ,b
     # for filename in filenames:
     #     print(f'Process {os.getpid()} had removed {os.path.join(dirname,filename)}')
     #     os.remove(os.path.join(dirname,filename))
-    for filename in chunk_of_files:
-        os.remove(os.path.join(dirname,filename))
+    
+    # for filename in chunk_of_files:
+    #     try:
+    #         os.remove(os.path.join(dirname,filename))
+    #     except Exception:
+    #         print(Exception)
+    
+    
+    # for filename in chunk_of_files:
+    #     try:
+    #         fd = open(os.path.join(dirname,filename))
+    #     except FileNotFoundError:
+    #         continue
+    #     else:
+    #         print(f'File {filename}didnot deleted!')
+        
     #asyncio.run(garbageCollector(dirname,offset_start_with,file_quantity))
    
 # async def garbageCollector(dirname:str,offset_start_with : int,file_quantity :int):
@@ -316,16 +335,21 @@ def mergeSameDirs(dirnames : list[str],blksize : int,finalstoragepath : str) ->N
                 continue
             dirlist = os.listdir(dir)
             quantity_files_per_proc = len(dirlist)//os.cpu_count()+1
-            mp.starmap(
-                mergeChunkFiles,
-                ((dir,dirlist[_*(quantity_files_per_proc):(1+_)*(quantity_files_per_proc)],
-                quantity_files_per_proc, blksize,os.path.join(dir,f'result0{_}.out')) for _ in range(os.cpu_count()))
-            
+            files_ranges = [dirlist[_*(quantity_files_per_proc):(1+_)*(quantity_files_per_proc)] for _ in range(os.cpu_count())]
+            # print(files_ranges)
+            iiterative_variable = [(dir,_,len(_),blksize,os.path.join(dir,f'result0{id}.out')) for id,_ in enumerate(files_ranges)]
+            work = mp.starmap_async(
+                mergeChunkFiles,iiterative_variable
+                            
             )
+            work.wait()
+            for filename in dirlist:
+                os.remove(os.path.join(dir,filename))
     for dir in dirnames:
         mergeChunkFiles(dir,os.listdir(dir),os.cpu_count(),blksize,f'{os.path.join(dir,os.path.basename(dir).split(".")[0])}.out')
         os.rename(f'{os.path.join(dir,os.path.basename(dir))}.out',f'{os.path.join(finalstoragepath,os.path.basename(dir))}.out')
-        os.rmdir(dir)
+        shutil.rmtree(dir)
+        
 
 
 def mergeSameDir1(dirname : str, blocksize : int,finalstoragepath : str) ->None:
