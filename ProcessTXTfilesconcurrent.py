@@ -63,16 +63,16 @@ def multithreadingLogic(received:tuple[str,str]):
     
     
 
-if __name__ == '__main__':
-    for filename in os.listdir(INFILES):
+def treatTXTfiles(infiles:str, outfile : str):
+    for filename in os.listdir(infiles):
         try:
-            os.mkdir(os.path.join(OUTFILE,filename.split('.')[0]))
+            os.mkdir(os.path.join(outfile,filename.split('.')[0]))
         except Exception:
             continue
-    start = time.perf_counter()
-    with multiprocessing.Pool(1) as multiprocessing_pool:
+    #start = time.perf_counter()
+    with multiprocessing.Pool() as multiprocessing_pool:
         multiprocessing_pool.map(
             multithreadingLogic,
-            ((os.path.join(INFILES,path),os.path.join(OUTFILE,path.split('.')[0])) for path in os.listdir(INFILES))
+            ((os.path.join(infiles,path),os.path.join(outfile,path.split('.')[0])) for path in os.listdir(infiles))
         ) 
-    print(time.perf_counter() - start)
+    #print(time.perf_counter() - start)

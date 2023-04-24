@@ -310,7 +310,7 @@ def mergeChunkFiles(dirname : str,chunk_of_files : list[str] ,chunksize : int ,b
     TODO: Move result file in other place, common storage(flatten nesting)
 '''
 
-def mergeSameDir1(dirname : str, blocksize : int) ->None:
+def mergeSameDir1(dirname : str, blocksize : int,finalstoragepath : str) ->None:
     quantity_files_per_proc = len(os.listdir(dirname))//os.cpu_count()+1
     # data_to_prcoesses = [(_*(quantity_files_per_proc+1),quantity_files_per_proc,
     #               os.path.join(dirname,f'result0{_}.out'),0) for _ in range(os.cpu_count())]
@@ -336,7 +336,7 @@ def mergeSameDir1(dirname : str, blocksize : int) ->None:
     # test = list((dirname,dirlist[_*(quantity_files_per_proc+1):(1+_)*(quantity_files_per_proc) +_],
     #           blocksize,os.path.join(dirname,f'result0{_}.out')) for _ in range(os.cpu_count()))
     # pass
-    if len(dirlist)>os.cpu_count()*2:
+    if len(dirlist)>os.cpu_count():
         with multiprocessing.Pool() as mp:
             mp.starmap(
                 mergeChunkFiles,
@@ -351,8 +351,10 @@ def mergeSameDir1(dirname : str, blocksize : int) ->None:
     #     )
     
      
-    mergeChunkFiles(dirname,os.listdir(dirname),os.cpu_count(),blocksize,f'{os.path.join(dirname,os.path.basename(dirname))}.out')
+    mergeChunkFiles(dirname,os.listdir(dirname),os.cpu_count(),blocksize,f'{os.path.join(dirname,os.path.basename(dirname).split(".")[0])}.out')
     
+    os.rename(f'{os.path.join(dirname,os.path.basename(dirname))}.out',os.path.join(finalstoragepath,os.path.basename(dirname))) 
+    os.rmdir(dirname)
     # a =  list((dirname,_*(quantity_files_per_proc+1),quantity_files_per_proc,blocksize,
     #               os.path.join(dirname,f'result0{os.getpid()}.out'),0) for _ in range(os.cpu_count()))
     # pass
@@ -362,16 +364,16 @@ def mergeSameDir1(dirname : str, blocksize : int) ->None:
 
 
  
-if __name__ == '__main__':
+# if __name__ == '__main__':
     # start = time.perf_counter()
     # mergeChunkFiles('/home/iv/Documents/mydir/kursovaya/temp',0,300,512,'/home/iv/Documents/mydir/kursovaya/temp/res.out')
     # print(f'{time.perf_counter() - start }')
     #print(os.path.basename(INDIR))
     
     
-    start  = time.perf_counter() 
-    mergeSameDir1('/home/iv/Documents/mydir/kursovaya/testfiles',512)
-    print(time.perf_counter()-start)
+    # start  = time.perf_counter() 
+    # mergeSameDir1('/home/iv/Documents/mydir/kursovaya/testfiles',512)
+    # print(time.perf_counter()-start)
     
     # a = [(_*2,(_+1)*2) for _ in range(os.cpu_count()//2)]
     # print(a)
