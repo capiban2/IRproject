@@ -11,7 +11,7 @@ from itertools import zip_longest
 import weakref
 from encodeDigits import packedBCD,decodePackedBCD
 from cachedTree import CachedTree
-
+import multiprocessing
 
 DICTIONARY : list[str] = [
     'run','arbitary','never',
@@ -198,8 +198,8 @@ class FixedBtree:
         Serialize tree's structure.
     ''' 
     
-    def storeTree(self,filepath : str = '/tmp/filepath.bin'):
-        with open(filepath,'wb') as binary_output:
+    def storeTree(self,pathtodir : str = '/tmp'):
+        with open(os.path.join(pathtodir,f'{self.keylen}btree.bin'),'wb') as binary_output:
             file_offset = 0
             current_node = self.root
             if self.tree_length > 1:
@@ -283,7 +283,7 @@ class FixedBtree:
             
 
 @dataclass
-class TreeHolder:
+class TreeHolder(FixedBtree):
     TREEES:dict[int,FixedBtree] = field(default_factory=dict)
 
     
@@ -298,7 +298,18 @@ class TreeHolder:
         
         self.TREEES[len(treeKey.term)].insertKey(treeKey)
        
+
+
+    def storeTrees(self,dirpath):
+        quantity_workers = os.cpu_count() if len(self.TREEES)> os.cpu_count() else len(self.TREEES)
+        with multiprocessing.Pool(processes=quantity_workers) as mp:
+            mp.starmap(
+                self.storeTree,
+                ((_,dirpath) for _ in self.TREEES.values())
+            )
+        
 '''
+
     All terms sent to func have equal length.
 '''
 
