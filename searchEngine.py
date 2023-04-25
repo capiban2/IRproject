@@ -3,9 +3,22 @@ import multiprocessing
 from encodeASCIIletters import encodeString
 from typing import Optional
 import os
+from typing import Generator,Iterable
 
-def useTraverse(pathtodir : str, pathtoindex : str, terms : list[bytes]):
-    tmp = TraverseThroughTree(pathtodir,pathtoindex,terms)
+
+PATHTOMAPPING='/home/iv/Documents/mydir/kursovaya/resultindexstorage/mapping.txt'
+PATHTOINDEX='/home/iv/Documents/mydir/kursovaya/resultindexstorage/index.bin'
+PATHTOTREESTORAGE='/home/iv/Documents/mydir/kursovaya/treestorage'
+
+
+'''
+    Method returns list of pairs, which contains term(string) and either posting list,correspoding to that term, or None,
+    means, what that term doesnt contain in collection.
+'''
+
+def useTraverse(pathtodir : str, pathtoindex : str, terms_union : list[bytes]) -> list[list[int]]:
+    
+    tmp = TraverseThroughTree(pathtodir,pathtoindex,terms_union)
     return tmp.traverse()
 
 
@@ -15,12 +28,11 @@ def useTraverse(pathtodir : str, pathtoindex : str, terms : list[bytes]):
     
     Encode string func works like hash-func and in the same time can save some storage.
 '''
-def search(pathtotreedir : str,pathtoindex : str, terms : list[str]) -> list[Optional[list[int]]]:
+def search(terms : list[str],pathtotreedir : str = PATHTOTREESTORAGE,pathtoindex : str = PATHTOINDEX) -> list[Optional[list[int]]]:
     
-    pathtotreedir = pathtotreedir
-    pathtoindex = pathtoindex
+    
     mapping = {}
-    encoded_terms = (encodeString(_) for _ in terms)
+    encoded_terms = (encodeString(_) if _.isalpha() else _.encode('utf-8') for _ in terms)
     
     for encoded_term in encoded_terms:
         if len(encoded_term) not in mapping.keys():
@@ -38,5 +50,48 @@ def search(pathtotreedir : str,pathtoindex : str, terms : list[str]) -> list[Opt
     return search_result 
     
     
+
+'''
+    Returning value is list of tuples, each pair contains one document's name ,from collection,
+    and boolean value, means, whether there is this pool of terms in specific document or not.
     
-        
+    Posting orders documents from 1, not from zero.
+    
+    For now func will return only documents, which contain all terms.
+'''
+def BooleanRetreival(terms : list[str])->list[str]:
+    with open(PATHTOMAPPING) as mapping_file:
+        doc_names = mapping_file.read().strip(' ').split(' ')
+    if len(result_search :=search(terms)) == 1:
+        return result_search[0]
+    
+    
+    #result_of_search = intersectionLists(search(terms))
+    return [doc_names[_-1] for _ in intersectionLists(result_search)]
+    
+def intersectionLists(posting : list[list[int]])->list[int]:
+    intersect = _intersectionTwoLists(posting[0],posting[1])
+    for postlist in posting[2:]:
+        intersect = _intersectionTwoLists(postlist,intersect)
+    return intersect
+    
+    
+
+def _intersectionTwoLists(f_list : list[int],s_list:list[int] | Generator[int,None,None])->Generator[int,None,None]:
+    
+    return (_ for _ in set(s_list) if _ in f_list)
+
+# def flatten(items,ignore_type = (int,)):
+#     for x in items:
+#         if isinstance(x,Iterable):
+#             yield from 
+
+
+if __name__ =='__main__':
+    a = [1,2,3,4,5,6]
+    b = (_ for _ in range(0,8,2))
+    intersect = list(_intersectionTwoLists(a,b))
+    pass
+    
+    
+    
