@@ -26,14 +26,16 @@ def invokepuppets(infiles : str,tmp_outfile : str,blksize : int,resultindexdir :
         for term, posting in MergeDifferentFiles(tmp_outfile,BLKSIZE):
             
              
-            encoded_term = term.encode('utf-8') if re.search(r'\d+',term) else encodeString(term)
+            encoded_term = term.encode('utf-8') if not term.isalpha() else encodeString(term)
             flow += (packedPosting := packedBCD(posting))
             jungle.insertKey(Key((offset,len(packedPosting)),encoded_term))
             
             offset+=len(packedPosting)
             if len(flow)>STOPSIZE:
                 result_index.write(flow) 
+                print(flow)
                 flow = b''
+        result_index.write(flow)
     jungle.storeTrees(treestorage)
     
     

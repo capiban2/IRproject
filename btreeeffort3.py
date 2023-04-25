@@ -57,8 +57,8 @@ class Range(Enum):
     AVERAGE = auto()
 
 DEGREEPERLEN : dict[Range,int] = {
-    Range.LONGSHORT : 5,
-    Range.AVERAGE : 10
+    Range.LONGSHORT : 50,
+    Range.AVERAGE : 100
 }
 
 
@@ -301,12 +301,14 @@ class TreeHolder(FixedBtree):
 
 
     def storeTrees(self,dirpath):
-        quantity_workers = os.cpu_count() if len(self.TREEES)> os.cpu_count() else len(self.TREEES)
-        with multiprocessing.Pool(processes=quantity_workers) as mp:
-            mp.starmap(
-                self.storeTree,
-                ((_,dirpath) for _ in self.TREEES.values())
-            )
+        # quantity_workers = os.cpu_count() if len(self.TREEES)> os.cpu_count() else len(self.TREEES)
+        # with multiprocessing.Pool(processes=quantity_workers) as mp:
+        #     mp.starmap(
+        #         self.storeTree,
+        #         ((_,dirpath) for _ in self.TREEES.values())
+        #     )
+        for tree in self.TREEES.values():
+            tree.storeTree(dirpath)
         
 '''
 

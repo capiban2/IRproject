@@ -129,7 +129,7 @@ class MergerSameFile:
             raise StopIteration
         self.queue.pop(0)
         if is_closed:
-            self.buffer = [buffer for buffer in self.buffer if len(buffer)>0 and self.filedescriptors[id].closed]
+            self.buffer = [buffer for _,buffer in enumerate(self.buffer) if len(buffer)>0 and self.filedescriptors[_].closed]
             self.filedescriptors = [fd for fd in self.filedescriptors if not fd.closed]
         return return_key
                     
@@ -183,7 +183,7 @@ class MergeDifferentFiles:
             for id,subbufer in enumerate(self.buffer,start = 1):
                 
                 if len(subbufer)==1:
-                    if not is_closed and self.__helper():
+                    if not is_closed and self.__helper(id):
                         is_closed = True
                         
                 current_term = subbufer[0]
@@ -210,29 +210,29 @@ class MergeDifferentFiles:
         self.queue.pop(ret_term)
         self.queue_keys.pop(0)
         if is_closed:
-            self.buffer = [buffer for buffer in self.buffer if len(buffer)>0 and self.filedescriptors[id].closed]
+            self.buffer = [buffer for _,buffer in enumerate(self.buffer) if len(buffer)>0 and self.filedescriptors[_].closed]
             self.filedescriptors = [fd for fd in self.filedescriptors if not fd.closed]
         return return_value
                         
                         
         
         
-    def __helper(self):
+    def __helper(self,id):
         try: 
-            flow = self.filedescriptors[id].read(self.bk).split(' ')
+            flow = self.filedescriptors[id-1].read(self.blksz).split(' ')
         except IndexError:
             return True
                 
         
         if flow == ['']:
             # print(f'File {self.filenames[id]} is removed.')
-            self.filedescriptors[id].close()
+            self.filedescriptors[id-1].close()
             
             #self.filenames.pop(id)
             
             return True
-        self.buffer[id][0]+=flow[0]
-        self.buffer[id].extend(flow[1:]) 
+        self.buffer[id-1][0]+=flow[0]
+        self.buffer[id-1].extend(flow[1:]) 
         return False
         
     
