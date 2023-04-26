@@ -56,9 +56,106 @@ def mergeSameDir(dirpath : str, finalstoragepath : str) ->None:
     shutil.rmtree(dirpath) 
        
 
-def mergeDifferentFiles(dirpath : str, finalstoragepath : str)  -> None:
+def mergeDifferentFiles(dirpath : str,blksize:int)  -> None:
     dirlist = os.listdir(dirpath)
     
+    with multiprocessing.Pool() as mp:
+        mp.starmap(
+            _mergeTwoDifferentFiles,
+            ((os.path.join(dirpath,dirlist[id]),os.path.join(dirpath,dirlist[id+1]),[id,id+1],\
+                blksize,os.path.join(dirpath,f'{id}{id+1}index.out')) for id in range(0,len(dirlist)-1,2))
+        )
+    if len(dirlist)%2!=0:
+        _serializeOneFile(os.path.join(dirpath,dirlist[-1]),blksize,os.path.join(dirpath,f'{len(dirlist)}index.out'),len(dirlist))
+    for _ in dirlist:
+        os.remove(os.path.join(dirpath,_))
+    
+    
+    dirlist = os.listdir(dirpath)
+    if len(dirlist)<=3:
+        if len(dirlist) == 3:
+        
+            mergeChunkHolders(dirpath,[dirlist[0],dirlist[1]],blksize)
+        return
+                
+    if len(dirlist)>=8: 
+        workers_quantity = os.cpu_count() if len(dirlist)> os.cpu_count()*2 else len(dirlist)//2
+        
+        files_per_proc = len(dirlist)//workers_quantity
+        
+        
+        with multiprocessing.Pool() as mp:
+            mp.starmap(
+                mergeChunkHolders, 
+                ((dirpath,dirlist[_*files_per_proc : (1+_)*files_per_proc],blksize) for _ in range(workers_quantity))
+            )
+        for _ in dirlist:
+            os.remove(os.path.join(dirpath,_))
+            
+            
+        dirlist = os.listdir(dirpath)
+    files_per_proc = len(dirlist)//2
+    with multiprocessing.Pool(processes=2) as mp:
+        mp.starmap(
+            mergeChunkHolders,
+            ((dirpath,dirlist[0:files_per_proc],blksize),(dirpath,dirlist[files_per_proc:],blksize))
+        )
+    for _ in dirlist:
+        os.remove(os.path.join(dirpath,_))
+        
+def finalMerger(dirpath,chunk_of_files : list[str],blksize) ->Generator[tuple[str,list[int]],None,None]:
+    filedesc = [open(os.path.join(dirpath,chunk_of_files[0]),'rb'),open(os.path.join(dirpath,chunk_of_files[1]),'rb')]
+    buffer = [[],[]]
+    
+    while True:
+        try:
+            if buffer[0][0].term == buffer[1][0].term:
+                    
+                buffer[0].pop(0)
+                buffer[1].pop(0)
+                yield (buffer[0][0].term,_mergeList(buffer[0][0].posting,buffer[1][0].posting))
+                continue
+            
+            cur_number = 0 if buffer[0][0] < buffer[1][0].term else 1
+                
+            buffer[cur_number].pop(0)
+            yield (buffer[cur_number][0].term,buffer[cur_number].posting)
+            
+        except IndexError:
+            idees_to_remove = []
+            for id,_ in enumerate(buffer): 
+                if not len(_):
+                    tmp = []
+                    for _ in range(blksize):
+                        try:
+                            tmp.append(pickle.load(filedesc[id]))
+                        except EOFError:
+                            if tmp == []:
+                                idees_to_remove.append(id-len(idees_to_remove))
+                            break
+                    
+                    buffer[id].extend(tmp)
+            for id in idees_to_remove:
+                buffer.pop(id)
+            
+                filedesc[id].close()
+                filedesc.pop(id) 
+            match len(buffer):
+                    case 0:
+                        break
+                    case 2:
+                        continue
+                    case 1:
+                        output_record = []
+                        while True:
+                            try:
+                                output_record.append(pickle.load(filedesc[0]))
+                            except EOFError:
+                                filedesc[0].close()
+                                for _ in output_record:
+                                    yield (_.term,_.posting)  
+                                # binary_output.write(b''.join(pickle.dumps(_,5)) for _ in output_record)
+                                break 
     
 @dataclass
 class Holder:
@@ -161,7 +258,7 @@ def _mergeTwoDifferentFiles(f_path : str , s_path : str ,numbers : list[int],blk
             #     break
             
             
-def mergeFileHolders(f_path : str, s_path : str, blksize : int , outputpath : str):
+def mergeFileHolders(f_path : str, s_path : str, blksize : int , outputpath : str,gen : int = 0) ->str:
     filedesc = [open(f_path,'rb'),open(s_path,'rb')]
     buffer=[[],[]]
     # while True:
@@ -171,7 +268,7 @@ def mergeFileHolders(f_path : str, s_path : str, blksize : int , outputpath : st
     #         break
     # buffer = [[pickle.load(filedesc[0]) for _ in range(blksize)],[pickle.load(filedesc[1]) for _ in range(blksize)]]
     list_of_holders = []
-    with open(outputpath,'wb') as binary_output:
+    with open(os.path.join(outputpath,f'{gen}{os.getpid()}.out'),'wb') as binary_output:
         while True:
             try:
                 if buffer[0][0].term == buffer[1][0].term:
@@ -222,9 +319,20 @@ def mergeFileHolders(f_path : str, s_path : str, blksize : int , outputpath : st
                                 binary_output.write(b''.join(pickle.dumps(_,5)) for _ in output_record)
                                 break
                     
-                            
+    return f'{gen}{os.getpid()}.out' 
+
                                 
-                
+
+def mergeChunkHolders(dirpath : str, chunk_of_holders : list[str],blksize : int)->None:
+    while len(chunk_of_holders) > 1:
+        merged = mergeFileHolders(os.path.join(dirpath,chunk_of_holders[0]),\
+            os.path.join(dirpath,chunk_of_holders[1]),blksize,dirpath,len(chunk_of_holders))
+        for _ in chunk_of_holders[:2]:
+            os.remove(os.path.join(dirpath,_))
+        chunk_of_holders.pop(0)
+        chunk_of_holders[0] = merged
+    
+    
         
                         
                 
