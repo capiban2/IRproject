@@ -6,8 +6,8 @@ import multiprocessing
 import shutil
 import pickle
 from dataclasses import dataclass
-
-
+from typing import Any
+from copy import deepcopy
 DIRPATH = '/home/iv/Documents/mydir/kursovaya/indexbinaries/world192'
 
 def _mergeTwoFiles(f_list : list[str],s_list : list[str]) ->list[str]:
@@ -62,11 +62,11 @@ def mergeDifferentFiles(dirpath : str, finalstoragepath : str)  -> None:
     
 @dataclass
 class Holder:
-    terms : str
+    term : str
     posting : list[int]
     
-    # def insertTerms(self,term,docID):
-    #     self.terms.append(term)
+    # def insertterm(self,term,docID):
+    #     self.term.append(term)
     #     self.posting.append([docID])
         
         
@@ -137,6 +137,8 @@ def _mergeTwoDifferentFiles(f_path : str , s_path : str ,numbers : list[int],blk
                     buffer.pop(id)
                     numbers.pop(id)
                     filesdescrs[id].close()
+                    filesdescrs.pop(id)
+                    last_parts_maintainer.pop(id)
                 
                 match len(buffer):
                     case 0:
@@ -144,7 +146,11 @@ def _mergeTwoDifferentFiles(f_path : str , s_path : str ,numbers : list[int],blk
                     case 2:
                         continue
                     case 1:
-                        buffer[0].extend(filesdescrs[0].read().split(' '))
+                        if (tmp:=filesdescrs[0].read()) != '':
+                            
+                            buffer[0].extend(tmp.split(' '))   
+                        buffer[0] +=[last_parts_maintainer[0]]
+                        filesdescrs[0].close()
                         binary_output.write(b''.join([pickle.dumps(Holder(_,[numbers[0]])) for _ in buffer[0]]))
                         break
                 
@@ -155,13 +161,95 @@ def _mergeTwoDifferentFiles(f_path : str , s_path : str ,numbers : list[int],blk
             #     break
             
             
+def mergeFileHolders(f_path : str, s_path : str, blksize : int , outputpath : str):
+    filedesc = [open(f_path,'rb'),open(s_path,'rb')]
+    buffer=[[],[]]
+    # while True:
+    #     try:
+            
+    #     except EOFError:
+    #         break
+    # buffer = [[pickle.load(filedesc[0]) for _ in range(blksize)],[pickle.load(filedesc[1]) for _ in range(blksize)]]
+    list_of_holders = []
+    with open(outputpath,'wb') as binary_output:
+        while True:
+            try:
+                if buffer[0][0].term == buffer[1][0].term:
+                    list_of_holders.append(Holder(buffer[0][0].term,\
+                        _mergeList(buffer[0][0].posting,buffer[1][0].posting)))
+                    buffer[0].pop(0)
+                    buffer[1].pop(0)
+                elif buffer[0][0] < buffer[1][0].term:
+                    list_of_holders.append(buffer[0][0])
+                    buffer[0].pop(0)
+                else:
+                    list_of_holders.append(buffer[1][0])
+                    buffer[1].pop(0)
                     
+            except IndexError:
+                binary_output.write(b''.join([pickle.dumps(_) for _ in list_of_holders]))
+                list_of_holders = []
+                idees_to_remove = []
+                for id,_ in enumerate(buffer):
+                    if not len(_):
+                        tmp = []
+                        for _ in range(blksize):
+                            try:
+                                tmp.append(pickle.load(filedesc[id]))
+                            except EOFError:
+                                if tmp == []:
+                                    idees_to_remove.append(id-len(idees_to_remove))
+                                break
+                        
+                        buffer[id].extend(tmp)
+                for id in idees_to_remove:
+                    buffer.pop(id)
+                
+                    filedesc[id].close()
+                    filedesc.pop(id)
+                match len(buffer):
+                    case 0:
+                        break
+                    case 2:
+                        continue
+                    case 1:
+                        output_record = []
+                        while True:
+                            try:
+                                output_record.append(pickle.load(filedesc[0]))
+                            except EOFError:
+                                filedesc[0].close()
+                                binary_output.write(b''.join(pickle.dumps(_,5)) for _ in output_record)
+                                break
+                    
+                            
+                                
+                
+        
                         
                 
             
-            
+def _mergeList(f_list : list[Any],s_list: list[Any]) ->list[Any]:
+    res = deepcopy(f_list)
+    
+    for elem in s_list:
+        if elem > res[-1]:
+            res.append(elem)
+        elif elem < res[0]:
+            res.insert(0,elem)
+        else:
+            for id,_ in enumerate(res):
+                if _ == elem:
+                    break
+                if id>0 and res[id-1] < elem < res[id]:
+                    res.insert(id,elem)
+                    break
+        
+                
         
         
+        
+    return res
     
     
     
@@ -181,22 +269,40 @@ if __name__ == '__main__':
     #             break
             
     #     print(res)
-    # _mergeTwoDifferentFiles('./testserialize1.txt','./testserialize2.txt',[1,2],1024,'./testserializeout.bin')
+    _mergeTwoDifferentFiles('./testserialize1.txt','./testserialize2.txt',[1,2],1024,'./testserializeout.bin')
+    _mergeTwoDifferentFiles('./testserialize1.txt','./testserialize2.txt',[3,4],1024,'./testserializeout2.bin')
+    mergeFileHolders('./testserializeout.bin','./testserializeout2.bin',128,'./testserializeholders.bin')
+    
     
     # with open('./testserializeout.bin','rb') as binary_input:
+        
     #     res = []
-    #     while True:
+    #     for _ in range(1000):
     #         try:
+            
     #             res.append(pickle.load(binary_input))
     #         except EOFError:
     #             break
             
     #     print(res)
-    ...
+    
+    
             
+    # a = _mergeList([1,2,4],[1,2,3,5,6,7]) 
+    # assert _mergeList([1],[2]) == [1,2]
+    # assert _mergeList([1,2,3],[4,5,6]) == [1,2,3,4,5,6]
+    # assert _mergeList([1,5,8],[3,4,6,7]) == [1,3,4,5,6,7,8]
     
     
-
+    # a = [_ for _ in range(0,1000,2)]
+    # b = [_ for _ in range(1,1000,2)]
+    # start = time.perf_counter()
+    # res = _mergeList(a,b)
+    # print(time.perf_counter() - start)
+    
+    
+    
+    ...
 
 
 
