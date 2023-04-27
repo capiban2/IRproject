@@ -18,7 +18,7 @@ STOPSIZE = 1024*1024
 BLKSIZEFORHOLDERS = 128
 
 def invokepuppets(infiles : str,tmp_outfile : str,blksize : int,resultindexdir : str,treestorage : str) -> None:
-    treatTXTfiles(infiles,tmp_outfile)
+    # treatTXTfiles(infiles,tmp_outfile)
     # for dirname in os.listdir(tmp_outfile):
     #     mergeSameDir1(os.path.join(tmp_outfile,dirname),blksize,tmp_outfile)
     with open(os.path.join(resultindexdir,'mapping.txt'),'w') as mapping:
@@ -52,6 +52,8 @@ def invokepuppets(infiles : str,tmp_outfile : str,blksize : int,resultindexdir :
     
     
 if __name__ == '__main__':
+    start = time.perf_counter()
     invokepuppets(INPUFILESPATH,OUTPUTINDEXESPATH,BLKSIZE,RESULTINDEXSTORAGE,TREESTORAGE)
+    print(f'Time, neccesary for whole proccessing : {time.perf_counter() - start}')
     
     

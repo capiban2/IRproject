@@ -34,12 +34,13 @@ def mergeChunkFiles(dirpath : str, chunk_of_files : list[str] | Generator[str,No
     
         
 def mergeSameDir(dirpath : str, finalstoragepath : str) ->None:
-    dirlist = os.listdir(dirpath)
-    quantity_files_per_proc = quantity_files_per_proc = len(dirlist)//os.cpu_count()+1
-    files_ranges = (dirlist[_*(quantity_files_per_proc):(1+_)*(quantity_files_per_proc)] for _ in range(os.cpu_count()))
+    dirlist = os.listdir(dirpath) if len(os.listdir(dirpath))%2==0 else os.listdir(dirpath)[:-1]
+    workers_quantity = os.cpu_count() if len(dirlist)>os.cpu_count()*2 else len(dirlist)//2
+    quantity_files_per_proc = quantity_files_per_proc = len(dirlist)//workers_quantity
+    files_ranges = (dirlist[_*(quantity_files_per_proc):(1+_)*(quantity_files_per_proc)] for _ in range(workers_quantity))
    
     
-    with multiprocessing.Pool() as mp:
+    with multiprocessing.Pool(processes=workers_quantity) as mp:
         mp.starmap(
             mergeChunkFiles,
             ((dirpath,_,os.path.join(dirpath,f'{id}result.out')) for id,_ in enumerate(files_ranges))
@@ -83,14 +84,12 @@ def mergeDifferentFiles(dirpath : str,blksize:int)  -> None:
         
         files_per_proc = len(dirlist)//workers_quantity
         
-        
         with multiprocessing.Pool() as mp:
             mp.starmap(
                 mergeChunkHolders, 
                 ((dirpath,dirlist[_*files_per_proc : (1+_)*files_per_proc],blksize) for _ in range(workers_quantity))
             )
-        for _ in dirlist:
-            os.remove(os.path.join(dirpath,_))
+        
             
             
         dirlist = os.listdir(dirpath)
@@ -100,8 +99,7 @@ def mergeDifferentFiles(dirpath : str,blksize:int)  -> None:
             mergeChunkHolders,
             ((dirpath,dirlist[0:files_per_proc],blksize),(dirpath,dirlist[files_per_proc:],blksize))
         )
-    for _ in dirlist:
-        os.remove(os.path.join(dirpath,_))
+
         
 def finalMerger(dirpath,chunk_of_files : list[str],blksize) ->Generator[tuple[str,list[int]],None,None]:
     filedesc = [open(os.path.join(dirpath,chunk_of_files[0]),'rb'),open(os.path.join(dirpath,chunk_of_files[1]),'rb')]
@@ -111,15 +109,17 @@ def finalMerger(dirpath,chunk_of_files : list[str],blksize) ->Generator[tuple[st
         try:
             if buffer[0][0].term == buffer[1][0].term:
                     
+                
+                yield (buffer[0][0].term,_mergeList(buffer[0][0].posting,buffer[1][0].posting))
                 buffer[0].pop(0)
                 buffer[1].pop(0)
-                yield (buffer[0][0].term,_mergeList(buffer[0][0].posting,buffer[1][0].posting))
                 continue
             
-            cur_number = 0 if buffer[0][0] < buffer[1][0].term else 1
+            cur_number = 0 if buffer[0][0].term < buffer[1][0].term else 1
                 
+            
+            yield (buffer[cur_number][0].term,buffer[cur_number][0].posting)
             buffer[cur_number].pop(0)
-            yield (buffer[cur_number][0].term,buffer[cur_number].posting)
             
         except IndexError:
             idees_to_remove = []
@@ -151,10 +151,14 @@ def finalMerger(dirpath,chunk_of_files : list[str],blksize) ->Generator[tuple[st
                             try:
                                 output_record.append(pickle.load(filedesc[0]))
                             except EOFError:
-                                filedesc[0].close()
-                                for _ in output_record:
+                                
+                                for _ in (buffer[0] + output_record):
                                     yield (_.term,_.posting)  
                                 # binary_output.write(b''.join(pickle.dumps(_,5)) for _ in output_record)
+                                buffer.pop(0)
+                            
+                                filedesc[0].close()
+                                filedesc.pop(0) 
                                 break 
     
 @dataclass
@@ -276,7 +280,7 @@ def mergeFileHolders(f_path : str, s_path : str, blksize : int , outputpath : st
                         _mergeList(buffer[0][0].posting,buffer[1][0].posting)))
                     buffer[0].pop(0)
                     buffer[1].pop(0)
-                elif buffer[0][0] < buffer[1][0].term:
+                elif buffer[0][0].term < buffer[1][0].term:
                     list_of_holders.append(buffer[0][0])
                     buffer[0].pop(0)
                 else:
@@ -316,7 +320,9 @@ def mergeFileHolders(f_path : str, s_path : str, blksize : int , outputpath : st
                                 output_record.append(pickle.load(filedesc[0]))
                             except EOFError:
                                 filedesc[0].close()
-                                binary_output.write(b''.join(pickle.dumps(_,5)) for _ in output_record)
+                                filedesc.pop(0)
+                                buffer.pop(0)
+                                binary_output.write(b''.join([pickle.dumps(_) for _ in output_record]))
                                 break
                     
     return f'{gen}{os.getpid()}.out' 

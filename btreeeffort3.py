@@ -88,8 +88,8 @@ class ReferencableNode(Node):
 
 
  
-    def __del__(self):
-       print('delete')
+    # def __del__(self):
+    #    print('delete')
    
 
     
@@ -292,7 +292,7 @@ class TreeHolder(FixedBtree):
 
             
         if len(treeKey.term) not in self.TREEES.keys():
-            degree = DEGREEPERLEN[Range.AVERAGE if 4<=len(treeKey.term) <=9 else Range.LONGSHORT]
+            degree = DEGREEPERLEN[Range.AVERAGE if 3<=len(treeKey.term) <=10 else Range.LONGSHORT]
             self.TREEES[len(treeKey.term)] = FixedBtree()
             self.TREEES[len(treeKey.term)].makeTree(degree,len(treeKey.term))
         
@@ -328,8 +328,8 @@ class TraverseThroughTree:
         self.sought_terms = terms
         self.keylen = len(self.sought_terms[0])
         self.indexpath = pathtoindex
-        if len(self.sought_terms)>1:
-            self.cachedTree = CachedTree()
+        
+        self.cachedTree = CachedTree()
         
         
         
@@ -338,7 +338,7 @@ class TraverseThroughTree:
         
         
         try:
-            with open(os.path.join(self.pathtofile,f'{self.keylen}tree.bin'),'rb') as self.treefile:
+            with open(os.path.join(self.pathtofile,f'{self.keylen}btree.bin'),'rb') as self.treefile:
                 self.treefile.seek(-struct.calcsize('<IH'),os.SEEK_END)
                 # root_offset, root_length = struct.unpack('<IH',self.treefile.read())
                 # os.lseek(self.treefile,os.SEEK_SET,root_offset)
@@ -393,7 +393,7 @@ class TraverseThroughTree:
         #     return self.__returnDataFromIndexFile(data_pointers[uppr_border])
         if uppr_border==lowr_border:
             if sought_term == keys[uppr_border]:
-                return self.__returnDataFromIndexFile(data_pointers[uppr_border])
+                return data_pointers[uppr_border]
             child_node_offset,child_node_length = node_pointers[uppr_border if keys[uppr_border] > sought_term else uppr_border+1]
             # os.lseek(self.treefile.fileno(),child_node_offset,os.SEEK_SET)
             return self.__proxyLayer(sought_term,child_node_offset,child_node_length)
@@ -515,6 +515,8 @@ class TraverseThroughTree:
                     
                 binary_index.seek(properties[0],os.SEEK_SET)
                 return_postings.append(decodePackedBCD(binary_index.read(properties[1])))
+                
+        return return_postings
     
 
 
