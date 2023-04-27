@@ -43,7 +43,7 @@ def processFile(path : str, outputpath : str,bksize : int):
             filenumber+=1
         
         with open(os.path.join(outputpath,f'{filenumber}'+os.path.basename(path).split('.')[0] + '.txt'),'w') as output_txt:
-            output_txt.write(tail)    
+            output_txt.write(tail.lower())    
             
             
 def handleTXTfiles(dirpath : str, outpath : str , blksize : int)->None:

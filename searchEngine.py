@@ -40,14 +40,19 @@ def search(terms : list[str],pathtotreedir : str = PATHTOTREESTORAGE,pathtoindex
             continue
         mapping[len(encoded_term)].append(encoded_term)
     
-    workers_quantity = os.cpu_count() if len(mapping.keys()) else len(mapping.keys())
+    workers_quantity = os.cpu_count() if len(mapping.keys())>os.cpu_count() else len(mapping.keys())
+    if workers_quantity==1:
+        return useTraverse(pathtotreedir,pathtoindex,list(mapping.values())[0])
     with multiprocessing.Pool(processes=workers_quantity) as mp:
         search_result = mp.starmap(
            useTraverse,
            ((pathtotreedir,pathtoindex,term_union) for term_union in mapping.values())
             
         )
-    return search_result 
+    flatten = []
+    for process_result in search_result:
+        flatten.extend(process_result)
+    return flatten
     
     
 
@@ -62,12 +67,13 @@ def search(terms : list[str],pathtotreedir : str = PATHTOTREESTORAGE,pathtoindex
 def BooleanRetreival(terms : list[str])->list[str]:
     with open(PATHTOMAPPING) as mapping_file:
         doc_names = mapping_file.read().strip(' ').split(' ')
-    if len(result_search :=search(terms)) == 1:
-        return result_search[0]
-    
+    if len(result_search :=search(terms)) > 1:
+        result_search = intersectionLists(result_search)
+    else:
+        result_search = result_search[0] 
     
     #result_of_search = intersectionLists(search(terms))
-    return [doc_names[_-1] for _ in intersectionLists(result_search)]
+    return [doc_names[_-1] for _ in result_search]
     
 def intersectionLists(posting : list[list[int]])->list[int]:
     intersect = _intersectionTwoLists(posting[0],posting[1])
@@ -88,9 +94,17 @@ def _intersectionTwoLists(f_list : list[int],s_list:list[int] | Generator[int,No
 
 
 if __name__ =='__main__':
-    a = [1,2,3,4,5,6]
-    b = (_ for _ in range(0,8,2))
-    intersect = list(_intersectionTwoLists(a,b))
+    # a = [1,2,3,4,5,6]
+    # b = (_ for _ in range(0,8,2))
+    # intersect = list(_intersectionTwoLists(a,b))
+    
+    # posting = [[_ for _ in range(10)], [_ for _ in range(1,11,2)]+[2], [_ for _ in range(0,10,2)]]
+    # print(posting)
+    # res = list(intersectionLists(posting))
+    # assert list(intersectionLists([[1,2,3],[2,3,4],[0,1,2]])) == [2]
+    # assert list(intersectionLists([[1,2,3],[1,2,3],[1,2,3],[1,2,3]])) == [1,2,3]
+    # assert list(intersectionLists([[1,2,3],[4,5,6],[7,8,9]])) == []
+    res = BooleanRetreival(['0','0'])
     pass
     
     

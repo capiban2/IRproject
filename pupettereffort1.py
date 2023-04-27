@@ -1,7 +1,7 @@
 from btreeeffort3 import TreeHolder,Key
 from encodeASCIIletters import encodeString
 from encodeDigits import packedBCD
-from ProcessTXTfilesconcurrent import treatTXTfiles
+from processTXTfiles import handleTXTfiles
 # from mergePostingsEffort2 import mergeSameDir1,mergeSameDirs,MergeDifferentFiles
 from mergePostingsEffort3 import mergeSameDir,mergeDifferentFiles,finalMerger
 import re
@@ -19,6 +19,7 @@ BLKSIZEFORHOLDERS = 128
 
 def invokepuppets(infiles : str,tmp_outfile : str,blksize : int,resultindexdir : str,treestorage : str) -> None:
     # treatTXTfiles(infiles,tmp_outfile)
+    handleTXTfiles(infiles,tmp_outfile,blksize)
     # for dirname in os.listdir(tmp_outfile):
     #     mergeSameDir1(os.path.join(tmp_outfile,dirname),blksize,tmp_outfile)
     with open(os.path.join(resultindexdir,'mapping.txt'),'w') as mapping:
